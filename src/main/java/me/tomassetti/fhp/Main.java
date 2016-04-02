@@ -157,9 +157,16 @@ public class Main {
         // Find the contour around the shapes
         List<Contour> contours = BinaryImageOps.contour(filtered, ConnectRule.EIGHT,null);
 
+        listPanel.addImage(drawContourns(contours, filtered.getWidth(), filtered.getHeight()), "Contours Pure");
+
+        contours = new LinkedList<>(contours);
+        contours.removeIf(c -> Geometry.length(c) < 1000);
+
+        listPanel.addImage(drawContourns(contours, filtered.getWidth(), filtered.getHeight()), "Contours Filtered");
+
         BufferedImage image2 = deepCopy(image);
 
-        Graphics2D g2 = image.createGraphics();
+        /*Graphics2D g2 = image.createGraphics();
         g2.setStroke(new BasicStroke(3));
         g2.setColor(Color.RED);
 
@@ -168,23 +175,60 @@ public class Main {
             VisualizeShapes.drawPolygon(polygon, true,g2);
         }
 
-        listPanel.addImage(image, "Contours");
+        listPanel.addImage(image, "Contours Fitted");*/
+
+        double minContourLength = 1500;
 
         // because the existing list does not support some operations
         contours = new LinkedList<>(contours);
-        contours.removeIf(c -> Geometry.length(c) < 1500);
+        contours.removeIf(c -> Geometry.length(c) < minContourLength);
 
-        List<List<Point2D_I32>> contours2 = contours.stream().map(c -> c.external).collect(Collectors.<List<Point2D_I32>>toList());
+        List<List<Point2D_I32>> contours2 = new LinkedList<>();
+        contours.forEach(c -> {
+            contours2.add(c.external);
+            contours2.addAll(c.internal);
+        } );
+        contours2.removeIf(c -> Geometry.length(c) < minContourLength);
+
+        listPanel.addImage(drawKeyPoints(image2, contours2), "Key points (not simplified)");
+
+        //List<List<Point2D_I32>> contours2 = contours.stream().map(c -> c.external).collect(Collectors.<List<Point2D_I32>>toList());
         simplifyContourns(contours2);
 
-        drawKeyPoints(image2, contours2);
-        listPanel.addImage(image2, "Key points");
+        listPanel.addImage(drawKeyPoints(image2, contours2), "Key points");
 
         return contours2;
     }
 
-    private static void drawKeyPoints(BufferedImage image2, List<List<Point2D_I32>> contours2) {
-        Graphics2D g3= image2.createGraphics();
+    private static BufferedImage drawContourns(List<Contour> contours, int width, int height) {
+        BufferedImage imageCountoursPure = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
+        Graphics2D gCountoursPure = imageCountoursPure.createGraphics();
+        gCountoursPure.setStroke(new BasicStroke(3));
+        for( Contour c : contours ) {
+            int i=0;
+            gCountoursPure.setColor(Color.RED);
+            for (Point2D_I32 p : c.external) {
+                Point2D_I32 b = c.external.get((i + 1)%c.external.size());
+                gCountoursPure.drawLine(p.x, p.y, b.x, b.y);
+                i++;
+            }
+
+            gCountoursPure.setColor(Color.BLUE);
+            for (List<Point2D_I32> anInternalC : c.internal) {
+                i=0;
+                for (Point2D_I32 p : anInternalC) {
+                    Point2D_I32 b = anInternalC.get((i + 1) % anInternalC.size());
+                    gCountoursPure.drawLine(p.x, p.y, b.x, b.y);
+                    i++;
+                }
+            }
+        }
+        return imageCountoursPure;
+    }
+
+    private static BufferedImage drawKeyPoints(BufferedImage image2, List<List<Point2D_I32>> contours2) {
+        BufferedImage result = new BufferedImage(image2.getWidth(), image2.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
+        Graphics2D g3= result.createGraphics();
         g3.setStroke(new BasicStroke(3));
 
         int keyPoints = 0;
@@ -207,6 +251,7 @@ public class Main {
                 g3.fillOval(p.getX()-3, p.getY()-3, 6, 6);
             }
         }
+        return result;
     }
 
     private static void mergeCloseConsecutivePoints(List<List<Point2D_I32>> contours, double threshold) {
@@ -418,6 +463,9 @@ public class Main {
 
     public static void main( String args[] ) throws IOException {
         String filename = "images/state-flowchart.png";
+        //String filename = "images/sm2.png";
+        //String filename = "images/sm3.png";
+        //String filename = "images/me.png";
 
         listPanel.addImage(ImageIO.read(new File(filename)), "original");
 

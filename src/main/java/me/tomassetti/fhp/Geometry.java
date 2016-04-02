@@ -11,10 +11,18 @@ import java.util.List;
  */
 public class Geometry {
 
+    public static double length(List<Point2D_I32> c) {
+        double total = 0.0;
+        for (int i=1;i<c.size();i++) {
+            total += c.get(i).distance(c.get((i+1) % c.size()));
+        }
+        return total;
+    }
+
     public static double length(Contour c) {
         double total = 0.0;
-        for (int i=1;i<c.external.size();i++) {
-            total += c.external.get(i-1).distance(c.external.get(i));
+        for (int i=0;i<c.external.size();i++) {
+            total += c.external.get(i).distance(c.external.get((i+1) % c.external.size()));
         }
         return total;
     }

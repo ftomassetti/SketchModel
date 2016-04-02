@@ -44,6 +44,9 @@ import java.util.stream.Collectors;
  */
 public class Main {
 
+    final static int WHITE = 255;
+    final static int BLACK = 0;
+
     // adjusts edge threshold for identifying pixels belonging to a line
     private static final float edgeThreshold = 25;
     // adjust the maximum number of found lines in the image
@@ -107,6 +110,20 @@ public class Main {
         return adjusted;
     }
 
+    private static GrayU8 binaryToDrawable(GrayU8 image) {
+        GrayU8 drawable = new GrayU8(image.width,image.height);
+        for (int y=0;y<image.getHeight();y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                if (image.get(x, y) > 0) {
+                    drawable.set(x, y, BLACK);
+                } else {
+                    drawable.set(x, y, WHITE);
+                }
+            }
+        }
+        return drawable;
+    }
+
     private static List<List<Point2D_I32>> identifyKeyPoints(BufferedImage image) {
         exaltColorDifferences(image);
 
@@ -115,7 +132,9 @@ public class Main {
 
         listPanel.addImage(input, "Phase I");
 
-        input = derivateCleanser(input);
+        input = derivateCleanser(derivateCleanser(input));
+
+        listPanel.addImage(input, "Phase Ib");
 
         // the mean pixel value is often a reasonable threshold when creating a binary image
         double mean = ImageStatistics.mean(input);
@@ -123,11 +142,17 @@ public class Main {
         // create a binary image by thresholding
         ThresholdImageOps.threshold(input, binary, (int)mean, true);
 
+        listPanel.addImage(binaryToDrawable(binary), "Phase II");
+
         //binary = sharpen(binary);
 
         // reduce noise with some filtering
-        GrayU8 filtered = BinaryImageOps.erode8(binary, 3, null);
-        filtered = BinaryImageOps.dilate8(filtered, 10, null);
+        GrayU8 filtered = BinaryImageOps.erode8(binary, 1, null);
+        listPanel.addImage(binaryToDrawable(filtered), "Phase IIb");
+        filtered = BinaryImageOps.dilate8(filtered, 1, null);
+
+
+        listPanel.addImage(binaryToDrawable(filtered), "Phase III");
 
         // Find the contour around the shapes
         List<Contour> contours = BinaryImageOps.contour(filtered, ConnectRule.EIGHT,null);
@@ -162,15 +187,19 @@ public class Main {
         Graphics2D g3= image2.createGraphics();
         g3.setStroke(new BasicStroke(3));
 
+        int keyPoints = 0;
+
         g3.setColor(Color.RED);
         for( List<Point2D_I32> c : contours2 ) {
             int i=0;
             for (Point2D_I32 p : c) {
                 Point2D_I32 b = c.get((i + 1)%c.size());
                 g3.drawLine(p.x, p.y, b.x, b.y);
+                keyPoints++;
                 i++;
             }
         }
+        System.out.println("KEY POINTS DRAWN "+keyPoints);
 
         g3.setColor(Color.BLUE);
         for( List<Point2D_I32> c : contours2 ) {
@@ -320,6 +349,7 @@ public class Main {
         int blurRadius = 5;
 
         listPanel.addImage(input,"Derivates Input");
+        GrayU8 original = input.clone();
 
         GrayU8 blurred = new GrayU8(input.width,input.height);
         GrayS16 derivX = new GrayS16(input.width,input.height);
@@ -333,7 +363,6 @@ public class Main {
 
         // First I save on a matrix if the point has a strong derivative
         int derivThreshold = 100;
-        int WHITE = 255;
         Map<Point, Boolean> pointsWithStrongDerivates = new HashMap<>();
         for (int y=0; y<input.getHeight(); y++) {
             for (int x=0; x<input.getWidth(); x++) {
@@ -347,13 +376,15 @@ public class Main {
             }
         }
 
+        GrayU8 pointsToKeep = new GrayU8(input.width,input.height);
+
         // Second: I remove points with strong derivatives if they have not enough other points with strong derivates
         //         near them
-        int exploreRadius = 3;
+        int exploreRadius = 5;
         int exploreTh = 20;
         for (int y=0; y<input.getHeight(); y++) {
             for (int x = 0; x < input.getWidth(); x++) {
-                if (pointsWithStrongDerivates.containsKey(new Point(x, y))) {
+                //if (pointsWithStrongDerivates.containsKey(new Point(x, y))) {
                     int total = 0;
                     for (int dy = Math.max(0, y - exploreRadius); dy < Math.min(input.getHeight(), y + exploreRadius + 1); dy++) {
                         for (int dx = Math.max(0, x - exploreRadius); dx < Math.min(input.getWidth(), x + exploreRadius + 1); dx++) {
@@ -362,32 +393,38 @@ public class Main {
                             }
                         }
                     }
-                    System.out.println(total);
+                    //System.out.println(total);
                     if (total < exploreTh) {
-                        input.set(x, y, WHITE);
+                        //input.set(x, y, WHITE);
+                        pointsToKeep.set(x, y, WHITE);
+                    } else {
+                        pointsToKeep.set(x, y, BLACK);
                     }
-                } else {
+                /*} else {
                     input.set(x, y, WHITE);
-                }
+                }*/
             }
         }
+        listPanel.addImage(pointsToKeep,"Derivates pointsToKeep");
 
         // display the results
-        //BufferedImage outputImage = VisualizeImageData.colorizeGradient(derivX, derivY, -1);
+        BufferedImage outputImage = VisualizeImageData.colorizeGradient(derivX, derivY, -1);
+        listPanel.addImage(outputImage,"Derivates");
         listPanel.addImage(input,"Derivates Cleansed");
+        listPanel.addImage(input,"Derivates Output");
 
-        return input;
+        return pointsToKeep;
     }
 
     public static void main( String args[] ) throws IOException {
-        String filename = "images/sm3.png";
+        String filename = "images/state-flowchart.png";
 
         listPanel.addImage(ImageIO.read(new File(filename)), "original");
 
         derivates(UtilImageIO.loadImage(filename, GrayU8.class));
 
         List<List<Point2D_I32>> keyPoints = identifyKeyPoints(ImageIO.read(new File(filename)));
-        //saveKeyPoints(keyPoints, ImageIO.read(new File(filename)), "training/SM1/");
+        //saveKeyPoints(keyPoints, ImageIO.read(new File(filename)), "training/SM2/");
 
         ShowImages.showWindow(listPanel, "Detected Lines", true);
     }

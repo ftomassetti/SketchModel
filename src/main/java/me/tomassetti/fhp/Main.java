@@ -33,10 +33,8 @@ import java.awt.image.ColorModel;
 import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -125,6 +123,7 @@ public class Main {
     }
 
     private static List<List<Point2D_I32>> identifyKeyPoints(BufferedImage image) {
+        //listPanel.addImage(image, "Phase 0");
         exaltColorDifferences(image);
 
         GrayU8 input = ConvertBufferedImage.convertFrom(image,(GrayU8)null);
@@ -177,7 +176,7 @@ public class Main {
 
         listPanel.addImage(image, "Contours Fitted");*/
 
-        double minContourLength = 1500;
+        double minContourLength = 500;
 
         // because the existing list does not support some operations
         contours = new LinkedList<>(contours);
@@ -190,12 +189,12 @@ public class Main {
         } );
         contours2.removeIf(c -> Geometry.length(c) < minContourLength);
 
-        listPanel.addImage(drawKeyPoints(image2, contours2), "Key points (not simplified)");
+        listPanel.addImage(drawKeyPoints(image2, contours2, false), "Key points (not simplified)");
 
         //List<List<Point2D_I32>> contours2 = contours.stream().map(c -> c.external).collect(Collectors.<List<Point2D_I32>>toList());
         simplifyContourns(contours2);
 
-        listPanel.addImage(drawKeyPoints(image2, contours2), "Key points");
+        listPanel.addImage(drawKeyPoints(image2, contours2, false), "Key points");
 
         return contours2;
     }
@@ -226,9 +225,12 @@ public class Main {
         return imageCountoursPure;
     }
 
-    private static BufferedImage drawKeyPoints(BufferedImage image2, List<List<Point2D_I32>> contours2) {
+    private static BufferedImage drawKeyPoints(BufferedImage image2, List<List<Point2D_I32>> contours2, boolean copyingimage) {
         BufferedImage result = new BufferedImage(image2.getWidth(), image2.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
         Graphics2D g3= result.createGraphics();
+        if (copyingimage) {
+            g3.drawImage(image2,0,0,null);
+        }
         g3.setStroke(new BasicStroke(3));
 
         int keyPoints = 0;
@@ -243,7 +245,6 @@ public class Main {
                 i++;
             }
         }
-        System.out.println("KEY POINTS DRAWN "+keyPoints);
 
         g3.setColor(Color.BLUE);
         for( List<Point2D_I32> c : contours2 ) {
@@ -258,7 +259,6 @@ public class Main {
         // When consecutive points are very close let's merge them
         for (int i=0;i<contours.size();i++) {
             List<Point2D_I32> c = contours.get(i);
-            System.out.println("INITIAL SIZE "+c.size());
             for (int pi=0;pi<c.size() && c.size()>2;pi++){
                 Point2D_I32 pointI = c.get(pi);
                 Point2D_I32 pointJ = c.get((pi+1) % c.size());
@@ -272,7 +272,6 @@ public class Main {
                 contours.remove(i);
                 i--;
             }
-            System.out.println("FINAL SIZE "+c.size());
         }
     }
 
@@ -465,14 +464,14 @@ public class Main {
         String filename = "images/state-flowchart.png";
         //String filename = "images/sm2.png";
         //String filename = "images/sm3.png";
-        //String filename = "images/me.png";
 
         listPanel.addImage(ImageIO.read(new File(filename)), "original");
 
         derivates(UtilImageIO.loadImage(filename, GrayU8.class));
 
         List<List<Point2D_I32>> keyPoints = identifyKeyPoints(ImageIO.read(new File(filename)));
-        //saveKeyPoints(keyPoints, ImageIO.read(new File(filename)), "training/SM2/");
+        saveKeyPoints(keyPoints, ImageIO.read(new File(filename)), "training/SF/");
+        System.out.println("Done.");
 
         ShowImages.showWindow(listPanel, "Detected Lines", true);
     }
@@ -497,11 +496,12 @@ public class Main {
     }
 
     private static void saveKeyPoints(List<List<Point2D_I32>> keyPoints, BufferedImage image, String path) throws IOException {
-        drawKeyPoints(image, keyPoints);
+        //image = drawKeyPoints(image, keyPoints, true);
 
         final int around = 200;
         int cindex = 0;
         for (List<Point2D_I32> contour : keyPoints) {
+            BufferedImage imageWithOnlyThisContour = drawKeyPoints(image, keyPoints.subList(cindex, cindex+1), true);
             cindex++;
             int pindex = 0;
             for (Point2D_I32 p : contour) {
@@ -511,16 +511,60 @@ public class Main {
                 int top = Math.max(0, p.y - around);
                 int bottom = Math.min(image.getHeight(), p.y + around);
 
-                BufferedImage portion = copyImage(image.getSubimage(left, top, right-left, bottom-top));
+                BufferedImage keyPointImage = new BufferedImage(around*2+1, around*2+1, BufferedImage.TYPE_3BYTE_BGR);
+                Graphics2D g = (Graphics2D) keyPointImage.getGraphics();
+                g.setColor(Color.WHITE);
+                g.fillRect(0, 0, around*2+1, around*2+1);
+                g.drawImage(imageWithOnlyThisContour.getSubimage(left, top, right-left, bottom-top), around + left - p.x, around + top - p.y, null);
+                //BufferedImage portion = copyImage(image.getSubimage(left, top, right-left, bottom-top));
 
                 // highlight the point
                 int highlightArea = 7;
-                Graphics2D g = (Graphics2D) portion.getGraphics();
+                //Graphics2D g = (Graphics2D) portion.getGraphics();
                 g.setColor(Color.GREEN);
-                g.drawOval(p.x - left - highlightArea, p.y - top - highlightArea, highlightArea*2, highlightArea*2);
+                drawCircle(around, g, highlightArea);
+                drawCircle(around, g, 30);
+                drawCircle(around, g, 100);
 
-                ImageIO.write(portion, "png", new File(path+"/point_"+cindex+"_"+pindex+".png"));
+                String pointName = "point_"+cindex+"_"+pindex;
+                ImageIO.write(keyPointImage, "png", new File(path+"/"+pointName+".png"));
+                int nBuckets = 12;
+                double anglePortion = (Math.PI*2)/nBuckets;
+                System.out.println( "[ "+pointName + " a 30 ]");
+                List<Point2D> points30 = intersections(contour, p, 30.0);
+                int[] buckets30 = new int[nBuckets];
+                points30.forEach(i -> {
+                    int bucket = (int)(Geometry.angle(p, new Point2D_I32((int)i.getX(),(int)i.getY()))/anglePortion);
+                    buckets30[bucket]++;
+                });
+                System.out.println( "[ "+pointName + " a 100 ]");
+                List<Point2D> points100 = intersections(contour, p, 100.0);
+                int[] buckets100 = new int[nBuckets];
+                points100.forEach(i -> {
+                    int bucket = (int)(Geometry.angle(p, new Point2D_I32((int)i.getX(),(int)i.getY()))/anglePortion);
+                    buckets100[bucket]++;
+                });
+                System.out.println( " at 30: " + Arrays.toString(buckets30));
+                System.out.println( " at 100: " + Arrays.toString(buckets100));
             }
         }
+    }
+
+    private static List<Point2D> intersections(List<Point2D_I32> contour, Point2D_I32 center, double radius) {
+        List<Point2D> points = new LinkedList<>();
+        for (int i=0;i<contour.size();i++) {
+            Point2D_I32 a = contour.get(i);
+            Point2D_I32 b = contour.get((i+1)%contour.size());
+            Geometry.getCircleLineIntersectionPoint(a, b, center, radius, points);
+        }
+        for (Point2D p : points) {
+            System.out.println( " * "+center+ " to " + p+ " angle "+ Geometry.angle(center, new Point2D_I32((int)p.getX(),(int)p.getY())));
+        }
+        return points;
+
+    }
+
+    private static void drawCircle(int around, Graphics2D g, int highlightArea) {
+        g.drawOval(around - highlightArea, around - highlightArea, highlightArea*2, highlightArea*2);
     }
 }

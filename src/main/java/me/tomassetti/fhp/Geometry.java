@@ -4,6 +4,9 @@ import boofcv.alg.filter.binary.Contour;
 import georegression.struct.line.LineSegment2D_F32;
 import georegression.struct.point.Point2D_I32;
 
+import java.awt.geom.Point2D;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -63,19 +66,36 @@ public class Geometry {
         float sgnY = Math.signum(a.getY() - b.getY());
 
         double angle = Math.atan(dy/dx);
-        angle += Math.PI;
-        if (sgnX< 0) {
+        if (sgnX < 0) {
             if (sgnY < 0) {
-                angle = Math.PI + angle;
+                //angle = Math.PI + angle;
+            } else if (sgnY > 0){
+                angle = 4*(Math.PI/2) - angle;
             } else {
+
+            }
+        } else if (sgnX> 0){
+            if (sgnY > 0) {
+                angle = Math.PI + angle;
+            } else if (sgnY< 0){
                 angle = Math.PI - angle;
+            } else {
+                angle += Math.PI;
             }
         } else {
-            if (sgnY < 0) {
+            if (sgnY > 0) {
+                angle += Math.PI;
                 angle = Math.PI*2 - angle;
-            } else {
-                // nothing to do
+            } else if (sgnY< 0){
+                angle += Math.PI;
+                angle = Math.PI*2 + angle;
             }
+        }
+        while (angle > Math.PI*2){
+            angle -= Math.PI*2;
+        }
+        while (angle < 0){
+            angle += Math.PI*2;
         }
         return angle;
     }
@@ -113,6 +133,61 @@ public class Geometry {
             a2 -= Math.PI;
         }
         return Math.min(Math.abs(a1-a2), Math.min(Math.abs(a1-a2+Math.PI*2),  Math.abs(a1-a2-Math.PI*2)));
+    }
+
+    private static boolean isXBetween(Point2D_I32 pointA, Point2D_I32 pointB, double x) {
+        return ((x >= pointA.getX()) && (x <= pointB.getX()))
+                || ((x >= pointB.getX()) && (x <= pointA.getX()));
+    }
+
+    private static boolean isYBetween(Point2D_I32 pointA, Point2D_I32 pointB, double y) {
+        return ((y >= pointA.getY()) && (y <= pointB.getY()))
+                || ((y >= pointB.getY()) && (y <= pointA.getY()));
+    }
+
+    private static boolean isBetween(Point2D_I32 pointA, Point2D_I32 pointB, Point2D p) {
+        return isXBetween(pointA, pointB, p.getX()) && isYBetween(pointA, pointB, p.getY()) ;
+    }
+
+    public static void getCircleLineIntersectionPoint(Point2D_I32 pointA,
+                                                               Point2D_I32 pointB, Point2D_I32 center, double radius, List<Point2D> list) {
+        double baX = pointB.x - pointA.x;
+        double baY = pointB.y - pointA.y;
+        double caX = center.x - pointA.x;
+        double caY = center.y - pointA.y;
+
+        double a = baX * baX + baY * baY;
+        double bBy2 = baX * caX + baY * caY;
+        double c = caX * caX + caY * caY - radius * radius;
+
+        double pBy2 = bBy2 / a;
+        double q = c / a;
+
+        double disc = pBy2 * pBy2 - q;
+        if (disc < 0) {
+            return;
+        }
+        // if disc == 0 ... dealt with later
+        double tmpSqrt = Math.sqrt(disc);
+        double abScalingFactor1 = -pBy2 + tmpSqrt;
+        double abScalingFactor2 = -pBy2 - tmpSqrt;
+
+        Point2D p1 = new Point2D.Double(pointA.x - baX * abScalingFactor1, pointA.y
+                - baY * abScalingFactor1);
+        if (disc == 0) { // abScalingFactor1 == abScalingFactor2
+            if (isBetween(pointA, pointB, p1)) {
+                list.add(p1);
+            }
+            return;
+        }
+        Point2D p2 = new Point2D.Double(pointA.x - baX * abScalingFactor2, pointA.y
+                - baY * abScalingFactor2);
+        if (isBetween(pointA, pointB, p1)) {
+            list.add(p1);
+        }
+        if (isBetween(pointA, pointB, p2)) {
+            list.add(p2);
+        }
     }
 
 }

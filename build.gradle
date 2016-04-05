@@ -22,6 +22,8 @@ repositories {
 dependencies {
 
     compile group: 'org.boofcv', name: 'all', version: '0.23'
+    compile group: 'nz.ac.waikato.cms.weka', name: 'weka-dev', version: '3.7.13'
+
     // The production code uses the SLF4J logging API at compile time
     //compile 'org.slf4j:slf4j-api:latest.release'
 

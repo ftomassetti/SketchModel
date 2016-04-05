@@ -33,6 +33,7 @@ import java.awt.image.ColorModel;
 import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -296,8 +297,21 @@ public class Main {
                 //System.out.println("lengthOfPrevSegment " + lengthOfPrevSegment);
                 //System.out.println("lengthOfMidSegment " + lengthOfMidSegment);
                 //System.out.println("lengthOfNextSegment " + lengthOfNextSegment);
-                if (lengthOfMidSegment < lengthOfPrevSegment/factor && lengthOfMidSegment < lengthOfNextSegment/factor) {
-                    Point2D_I32 midPoint = new Point2D_I32((pa.x+pb.x)/2, (pa.y+pb.y)/2);
+                Point2D_I32 midPoint = new Point2D_I32((pb.x+pc.x)/2, (pb.y+pc.y)/2);
+                double anglePrevBefore = Geometry.angle(pa, pb);
+                double anglePrevAfter = Geometry.angle(pa, midPoint);
+                double angleNextBefore = Geometry.angle(pc, pd);
+                double angleNextAfter = Geometry.angle(midPoint, pd);
+                double distanceAnglePrev = Geometry.angleDistance(anglePrevBefore, anglePrevAfter);
+                double distanceAngleNext = Geometry.angleDistance(angleNextBefore, angleNextAfter);
+                double angleDiffTh = 0.15;
+                //System.out.println("anglePrevBefore " + anglePrevBefore+ " anglePrevAfter " + anglePrevAfter);
+                //System.out.println("angleNextBefore " + angleNextBefore+ " angleNextAfter " + angleNextAfter);
+                //System.out.println("distanceAnglePrev " + distanceAnglePrev+ " distanceAngleNext " + distanceAngleNext);
+                if (lengthOfMidSegment < lengthOfPrevSegment/factor
+                        && lengthOfMidSegment < lengthOfNextSegment/factor
+                        && distanceAnglePrev < angleDiffTh
+                        && distanceAngleNext < angleDiffTh) {
                     c.remove(pi);
                     c.add(pi, midPoint);
                     c.remove((pi + 1) % c.size());
@@ -332,10 +346,11 @@ public class Main {
         double PRACTICALLY_SOME_POINT = 5.0;
 
         mergeCloseConsecutivePoints(contours, PRACTICALLY_SOME_POINT);
-
         mergePointsInLine(contours, PRACTICALLY_SOME_POINT/3);
+        shortSegmentKiller(contours, 3);
         mergeCloseConsecutivePoints(contours, 20);
         mergePointsInLine(contours, 5);
+        shortSegmentKiller(contours, 3);
     }
 
     public static void exaltColorDifferences(BufferedImage image) {
@@ -461,16 +476,16 @@ public class Main {
     }
 
     public static void main( String args[] ) throws IOException {
-        String filename = "images/state-flowchart.png";
+        //String filename = "images/state-flowchart.png";
         //String filename = "images/sm2.png";
-        //String filename = "images/sm3.png";
+        String filename = "images/sm5.png";
 
         listPanel.addImage(ImageIO.read(new File(filename)), "original");
 
         derivates(UtilImageIO.loadImage(filename, GrayU8.class));
 
         List<List<Point2D_I32>> keyPoints = identifyKeyPoints(ImageIO.read(new File(filename)));
-        saveKeyPoints(keyPoints, ImageIO.read(new File(filename)), "training/SF/");
+        saveKeyPoints(keyPoints, ImageIO.read(new File(filename)), "training/SM5/");
         System.out.println("Done.");
 
         ShowImages.showWindow(listPanel, "Detected Lines", true);
@@ -498,6 +513,7 @@ public class Main {
     private static void saveKeyPoints(List<List<Point2D_I32>> keyPoints, BufferedImage image, String path) throws IOException {
         //image = drawKeyPoints(image, keyPoints, true);
 
+        StringBuffer data = new StringBuffer();
         final int around = 200;
         int cindex = 0;
         for (List<Point2D_I32> contour : keyPoints) {
@@ -530,24 +546,43 @@ public class Main {
                 ImageIO.write(keyPointImage, "png", new File(path+"/"+pointName+".png"));
                 int nBuckets = 12;
                 double anglePortion = (Math.PI*2)/nBuckets;
-                System.out.println( "[ "+pointName + " a 30 ]");
+                //System.out.println( "[ "+pointName + " a 30 ]");
                 List<Point2D> points30 = intersections(contour, p, 30.0);
                 int[] buckets30 = new int[nBuckets];
                 points30.forEach(i -> {
                     int bucket = (int)(Geometry.angle(p, new Point2D_I32((int)i.getX(),(int)i.getY()))/anglePortion);
                     buckets30[bucket]++;
                 });
-                System.out.println( "[ "+pointName + " a 100 ]");
+                //System.out.println( "[ "+pointName + " a 100 ]");
                 List<Point2D> points100 = intersections(contour, p, 100.0);
                 int[] buckets100 = new int[nBuckets];
                 points100.forEach(i -> {
                     int bucket = (int)(Geometry.angle(p, new Point2D_I32((int)i.getX(),(int)i.getY()))/anglePortion);
                     buckets100[bucket]++;
                 });
-                System.out.println( " at 30: " + Arrays.toString(buckets30));
-                System.out.println( " at 100: " + Arrays.toString(buckets100));
+                addRowLine(data, pointName, buckets30, buckets100);
+                //System.out.println( " at 30: " + Arrays.toString(buckets30));
+                //System.out.println( " at 100: " + Arrays.toString(buckets100));
             }
         }
+        File dataFile = new File(path+"/data.csv");
+        PrintWriter out = new PrintWriter(dataFile);
+        out.println("name,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f112,classification");
+        out.print(data.toString());
+        out.close();
+    }
+
+    private static void addRowLine(StringBuffer sb, String name, int[] buckets30, int[] buckets100) {
+        sb.append(name);
+        for (int v : buckets30) {
+            sb.append(",");
+            sb.append(v);
+        }
+        for (int v : buckets100) {
+            sb.append(",");
+            sb.append(v);
+        }
+        sb.append("\n");
     }
 
     private static List<Point2D> intersections(List<Point2D_I32> contour, Point2D_I32 center, double radius) {

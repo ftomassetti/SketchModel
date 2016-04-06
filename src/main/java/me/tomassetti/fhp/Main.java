@@ -9,17 +9,14 @@ import boofcv.alg.filter.binary.ThresholdImageOps;
 import boofcv.alg.filter.blur.BlurImageOps;
 import boofcv.alg.filter.derivative.GradientSobel;
 import boofcv.alg.misc.ImageStatistics;
-import boofcv.alg.shapes.ShapeFittingOps;
 import boofcv.core.image.ConvertImage;
 import boofcv.core.image.border.FactoryImageBorderAlgs;
 import boofcv.gui.ListDisplayPanel;
-import boofcv.gui.feature.VisualizeShapes;
 import boofcv.gui.image.ShowImages;
 import boofcv.gui.image.VisualizeImageData;
 import boofcv.io.image.ConvertBufferedImage;
 import boofcv.io.image.UtilImageIO;
 import boofcv.struct.ConnectRule;
-import boofcv.struct.PointIndex_I32;
 import boofcv.struct.image.GrayF32;
 import boofcv.struct.image.GrayS16;
 import boofcv.struct.image.GrayU8;
@@ -36,7 +33,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.*;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Created by federico on 28/03/16.
@@ -279,6 +275,7 @@ public class Main {
     // When a segment is way shorter than the segment following and preeceding that segment can be removed.
     // The extreme of that segment are replaced with a single point representing the average of the extremes of the segment
     private static void shortSegmentKiller(List<List<Point2D_I32>> contours, float factor) {
+        double shortTh = 100;
         for (int cIndex = 0; cIndex < contours.size(); cIndex++) {
             List<Point2D_I32> c = contours.get(cIndex);
             if (c.size() < 3) {
@@ -304,12 +301,13 @@ public class Main {
                 double angleNextAfter = Geometry.angle(midPoint, pd);
                 double distanceAnglePrev = Geometry.angleDistance(anglePrevBefore, anglePrevAfter);
                 double distanceAngleNext = Geometry.angleDistance(angleNextBefore, angleNextAfter);
-                double angleDiffTh = 0.15;
+                double angleDiffTh = 0.18;
                 //System.out.println("anglePrevBefore " + anglePrevBefore+ " anglePrevAfter " + anglePrevAfter);
                 //System.out.println("angleNextBefore " + angleNextBefore+ " angleNextAfter " + angleNextAfter);
                 //System.out.println("distanceAnglePrev " + distanceAnglePrev+ " distanceAngleNext " + distanceAngleNext);
-                if (lengthOfMidSegment < lengthOfPrevSegment/factor
-                        && lengthOfMidSegment < lengthOfNextSegment/factor
+                boolean isShort = lengthOfMidSegment < shortTh;
+                boolean isShortComparedToSorrounding = lengthOfMidSegment < lengthOfPrevSegment/factor && lengthOfMidSegment < lengthOfNextSegment/factor;
+                if ((isShort || isShortComparedToSorrounding)
                         && distanceAnglePrev < angleDiffTh
                         && distanceAngleNext < angleDiffTh) {
                     c.remove(pi);
@@ -477,18 +475,117 @@ public class Main {
 
     public static void main( String args[] ) throws IOException {
         //String filename = "images/state-flowchart.png";
-        //String filename = "images/sm2.png";
-        String filename = "images/sm5.png";
+        String filename = "images/sm2.png";
+        //String filename = "images/sm5.png";
 
         listPanel.addImage(ImageIO.read(new File(filename)), "original");
 
         derivates(UtilImageIO.loadImage(filename, GrayU8.class));
 
         List<List<Point2D_I32>> keyPoints = identifyKeyPoints(ImageIO.read(new File(filename)));
-        saveKeyPoints(keyPoints, ImageIO.read(new File(filename)), "training/SM5/");
+        List<ClassifiedPoint> classifiedPoints = saveKeyPoints(keyPoints, ImageIO.read(new File(filename)), "training/SM2/");
+        List<RecognizedRectangle> rectangles = reconstructFigures(classifiedPoints);
+        saveRectangles(rectangles, ImageIO.read(new File(filename)), "training/SM2/");
         System.out.println("Done.");
 
         ShowImages.showWindow(listPanel, "Detected Lines", true);
+    }
+
+    private static void saveRectangles(List<RecognizedRectangle> rectangles, BufferedImage originalImage, String path) throws IOException {
+        int i = 0;
+        for (RecognizedRectangle rectangle : rectangles) {
+            BufferedImage img = originalImage.getSubimage(
+                    rectangle.getLeft(), rectangle.getTop(), rectangle.getWidth(), rectangle.getHeight());
+            ImageIO.write(img, "png", new File(path+"/rectangle"+i+".png"));
+            i++;
+        }
+    }
+
+    private static List<RecognizedRectangle> reconstructFigures(List<ClassifiedPoint> classifiedPoints) {
+        List<RecognizedRectangle> rectangles = new LinkedList<>();
+
+        // First phase: merge points with same role which are very close
+        Map<PointType, List<ClassifiedPoint>> byType = new HashMap<>();
+        for (PointType pt : PointType.values()) {
+            byType.put(pt, new LinkedList<>());
+        }
+        double maxDistance = 50;
+
+        for (ClassifiedPoint p : classifiedPoints) {
+            byType.get(p.getPointType()).add(p);
+        }
+
+        for (PointType pt : PointType.values()) {
+            for (int i = 0; i < byType.get(pt).size(); i++) {
+                boolean restart = false;
+                for (int j = i+1; j < byType.get(pt).size() && !restart; j++) {
+                    double distance = byType.get(pt).get(i).getPoint().distance(byType.get(pt).get(j).getPoint());
+                    if (distance < maxDistance) {
+                        ClassifiedPoint pj = byType.get(pt).remove(j);
+                        ClassifiedPoint pi = byType.get(pt).remove(i);
+                        System.out.println("MERGING "+pi.getName()+ " "+pj.getName());
+                        byType.get(pt).add(i, pi.merge(pj));
+                        restart = true;
+                        i--;
+                    }
+                }
+            }
+        }
+        int totalPoints = 0;
+        for (PointType pt : PointType.values()) {
+            totalPoints += byType.get(pt).size();
+        }
+        System.out.println("totalPoints "+ totalPoints);
+
+        // Starting from top left find closest bottom right
+        // at the right and below the given top left point
+        for (ClassifiedPoint topLeft : byType.get(PointType.CORNER_TOP_LEFT)) {
+            System.out.println("From Point left  "+ topLeft);
+            double minDistance = Double.MAX_VALUE;
+            ClassifiedPoint bottomRightSelected = null;
+            for (ClassifiedPoint bottomRight : byType.get(PointType.CORNER_BOTTOM_RIGHT)) {
+                if (bottomRight.getPoint().getX() > topLeft.getPoint().getX() && bottomRight.getPoint().getY() > topLeft.getPoint().getY()) {
+                    double distance = bottomRight.getPoint().distance(topLeft.getPoint());
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        bottomRightSelected = bottomRight;
+                    }
+                }
+            }
+            if (bottomRightSelected != null) {
+                System.out.println("Selected bottom right  "+ bottomRightSelected);
+                Point2D_I32 expectedTopRight = new Point2D_I32(bottomRightSelected.getPoint().x, topLeft.getPoint().y);
+                ClassifiedPoint topRightSelected = findClosestWithin(expectedTopRight, byType.get(PointType.CORNER_TOP_RIGHT), maxDistance * 1.5);
+                Point2D_I32 expectedBottomLeft = new Point2D_I32(topLeft.getPoint().x, bottomRightSelected.getPoint().y);
+                ClassifiedPoint bottomLeftSelected = findClosestWithin(expectedBottomLeft, byType.get(PointType.CORNER_BOTTOM_LEFT), maxDistance * 1.5);
+                if (topRightSelected != null) {
+                    System.out.println("Selected top right  "+ topRightSelected);
+                }
+                if (bottomLeftSelected != null) {
+                    System.out.println("Selected bottom left  "+ bottomLeftSelected);
+                }
+                if (topRightSelected != null && bottomLeftSelected != null) {
+                    rectangles.add(new RecognizedRectangle(topLeft, topRightSelected, bottomRightSelected, bottomLeftSelected));
+                }
+                System.out.println();
+            }
+        }
+
+        return rectangles;
+
+    }
+
+    private static ClassifiedPoint findClosestWithin(Point2D_I32 ref, List<ClassifiedPoint> classifiedPoints, double maxDistance) {
+        double minDistance = Double.MAX_VALUE;
+        ClassifiedPoint selected = null;
+        for (ClassifiedPoint candidate : classifiedPoints) {
+            double distance = candidate.getPoint().distance(ref);
+            if (distance < maxDistance && distance < minDistance) {
+                minDistance = distance;
+                selected = candidate;
+            }
+        }
+        return selected;
     }
 
     private static void derivates( GrayU8 input )
@@ -510,8 +607,8 @@ public class Main {
         listPanel.addImage(outputImage,"Procedural Fixed Type");
     }
 
-    private static void saveKeyPoints(List<List<Point2D_I32>> keyPoints, BufferedImage image, String path) throws IOException {
-        //image = drawKeyPoints(image, keyPoints, true);
+    private static List<ClassifiedPoint> saveKeyPoints(List<List<Point2D_I32>> keyPoints, BufferedImage image, String path) throws IOException {
+        List<ClassifiedPoint> classifiedPoints = new LinkedList<>();
 
         StringBuffer data = new StringBuffer();
         final int around = 200;
@@ -561,6 +658,11 @@ public class Main {
                     buckets100[bucket]++;
                 });
                 addRowLine(data, pointName, buckets30, buckets100);
+                PointType res = classifyPoint(buckets30, buckets100);
+                if (res != null) {
+                    System.out.println("Point "+ pointName + " is "+ res+ " at " + p);
+                    classifiedPoints.add(new ClassifiedPoint(pointName, p, res));
+                }
                 //System.out.println( " at 30: " + Arrays.toString(buckets30));
                 //System.out.println( " at 100: " + Arrays.toString(buckets100));
             }
@@ -570,6 +672,95 @@ public class Main {
         out.println("name,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f112,classification");
         out.print(data.toString());
         out.close();
+
+        return classifiedPoints;
+    }
+
+    private static PointType classifyPoint(int[] buckets30, int[] buckets100) {
+        if (Arrays.equals(new int[]{0,0,0,1,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,1,0,1,0,0,0,0,0,0}, buckets100)) {
+            return PointType.CORNER_TOP_RIGHT;
+        }
+        if (Arrays.equals(new int[]{0,0,0,1,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,1,0,0,1,0,0,0,0,0}, buckets100)) {
+            return PointType.CORNER_TOP_RIGHT;
+        }
+        if (Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets100)) {
+            return PointType.CORNER_BOTTOM_RIGHT;
+        }
+        if (Arrays.equals(new int[]{0,0,0,0,0,0,0,0,1,0,0,1}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,0,0,0,1,0,0,1}, buckets100)) {
+            return PointType.CORNER_BOTTOM_LEFT;
+        }
+        if (Arrays.equals(new int[]{0,0,0,0,0,0,0,0,0,1,0,1}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,0,0,0,0,0,0,1}, buckets100)) {
+            return PointType.CORNER_TOP_LEFT;
+        }
+        if (Arrays.equals(new int[]{1,0,0,1,0,0,0,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{1,0,0,0,0,0,0,0,0,1,0,0}, buckets100)) {
+            return PointType.CORNER_BOTTOM_LEFT;
+        }
+        if (Arrays.equals(new int[]{0,0,0,1,0,0,0,0,0,0,0,1}, buckets30) && Arrays.equals(new int[]{0,0,0,1,0,0,0,0,0,0,0,1}, buckets100)) {
+            return PointType.CORNER_TOP_LEFT;
+        }
+        if (Arrays.equals(new int[]{0,0,0,0,0,0,1,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,0,1,0,0,1,0,0}, buckets100)) {
+            return PointType.CORNER_BOTTOM_RIGHT;
+        }
+        if (Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,1,0,0,0,0,0,0}, buckets100)) {
+            return PointType.CORNER_TOP_RIGHT;
+        }
+        if (Arrays.equals(new int[]{0,0,1,0,0,0,0,0,0,0,0,1}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,0,0,0,0,0,0,1}, buckets100)) {
+            return PointType.CORNER_TOP_LEFT;
+        }
+        if (Arrays.equals(new int[]{0,0,0,0,0,0,1,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,0,1,0,0,1,0,0}, buckets100)) {
+            return PointType.CORNER_BOTTOM_RIGHT;
+        }
+        if (Arrays.equals(new int[]{1,0,0,0,0,0,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{1,0,0,0,0,0,0,0,0,1,0,0}, buckets100)) {
+            return PointType.CORNER_BOTTOM_LEFT;
+        }
+        if (Arrays.equals(new int[]{1,0,0,0,0,0,0,0,1,0,0,0}, buckets30) && Arrays.equals(new int[]{1,0,0,0,0,0,0,0,1,0,0,0}, buckets100)) {
+            return PointType.CORNER_BOTTOM_LEFT;
+        }
+        if (Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets100)) {
+            return PointType.CORNER_TOP_RIGHT;
+        }
+        if (Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,1,0,0,1,0,0,0}, buckets100)) {
+            return PointType.CORNER_BOTTOM_RIGHT;
+        }
+        if (Arrays.equals(new int[]{0,0,0,0,0,0,1,0,1,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,1,0,0,1,0,0,0}, buckets100)) {
+            return PointType.CORNER_BOTTOM_RIGHT;
+        }
+        if (Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets100)) {
+            return PointType.CORNER_TOP_RIGHT;
+        }
+        if (Arrays.equals(new int[]{1,0,1,0,0,0,0,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{1,0,1,0,0,0,0,0,0,0,0,0}, buckets100)) {
+            return PointType.CORNER_TOP_LEFT;
+        }
+        if (Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,1,0,0,0,0,0,0}, buckets100)) {
+            return PointType.CORNER_TOP_RIGHT;
+        }
+        //           0,0,0,0,0,1,0,0,0,1,0,0, 0,0,1,0,0,1,0,0,0,0,0,0
+        //           1,0,0,0,0,0,0,0,0,1,0,0, 1,0,0,0,0,0,0,0,0,1,0,0
+        //           1,0,1,0,0,0,0,0,0,0,0,0, 1,0,1,0,0,0,0,0,0,0,0,0
+        //           0,0,1,0,0,0,1,0,0,0,0,0 ,0,0,1,0,0,0,1,0,0,0,0,0
+        //           0,0,0,0,0,0,1,0,1,0,0,0, 0,0,0,0,0,1,0,0,1,0,0,0
+        //           0,0,0,0,0,1,0,0,0,1,0,0, 0,0,0,0,0,1,0,0,1,0,0,0
+        //           0,0,1,0,0,0,1,0,0,0,0,0, 0,0,1,0,0,0,1,0,0,0,0,0
+        //           1,0,0,0,0,0,0,0,1,0,0,0, 1,0,0,0,0,0,0,0,1,0,0,0
+        //point_1_1, 0,0,0,1,0,0,1,0,0,0,0,0, 0,0,0,1,0,1,0,0,0,0,0,0
+
+        //point_1_2, 0,0,0,1,0,0,1,0,0,0,0,0, 0,0,0,1,0,0,1,0,0,0,0,0
+        //point_1_11,0,0,0,0,0,1,0,0,0,1,0,0, 0,0,0,0,0,1,0,0,0,1,0,0
+
+        //point_1_12,0,0,0,0,0,0,0,0,1,0,0,1, 0,0,0,0,0,0,0,0,1,0,0,1
+
+        //point_1_13,0,0,0,0,0,0,0,0,0,1,0,1, 0,0,1,0,0,0,0,0,0,0,0,1
+
+        //point_1_19,1,0,0,1,0,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,0,1,0,0
+        //point_1_20,0,0,0,1,0,0,0,0,0,0,0,1, 0,0,0,1,0,0,0,0,0,0,0,1
+        //point_3_3  0,0,0,0,0,0,1,0,0,1,0,0, 0,0,0,0,0,0,1,0,0,1,0,0
+        //point_3_5  0,0,1,0,0,0,1,0,0,0,0,0, 0,0,1,0,0,1,0,0,0,0,0,0
+        //point_5_6, 0,0,1,0,0,0,0,0,0,0,0,1, 0,0,1,0,0,0,0,0,0,0,0,1
+        //point_5_10,0,0,0,1,0,0,1,0,0,0,0,0, 0,0,0,1,0,0,1,0,0,0,0,0
+        //point_6_3, 0,0,0,0,0,0,1,0,0,1,0,0, 0,0,0,0,0,0,1,0,0,1,0,0
+        //point_6_21,1,0,0,0,0,0,0,0,0,1,0,0, 1,0,0,0,0,0,0,0,0,1,0,0
+        //      11_3,1,0,0,0,0,0,0,0,0,1,0,0, 1,0,0,0,0,0,0,0,0,1,0,0
+        return null;
     }
 
     private static void addRowLine(StringBuffer sb, String name, int[] buckets30, int[] buckets100) {
@@ -592,9 +783,9 @@ public class Main {
             Point2D_I32 b = contour.get((i+1)%contour.size());
             Geometry.getCircleLineIntersectionPoint(a, b, center, radius, points);
         }
-        for (Point2D p : points) {
+        /*for (Point2D p : points) {
             System.out.println( " * "+center+ " to " + p+ " angle "+ Geometry.angle(center, new Point2D_I32((int)p.getX(),(int)p.getY())));
-        }
+        }*/
         return points;
 
     }

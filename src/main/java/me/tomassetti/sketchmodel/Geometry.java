@@ -5,6 +5,7 @@ import georegression.struct.line.LineSegment2D_F32;
 import georegression.struct.point.Point2D_I32;
 
 import java.awt.geom.Point2D;
+import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -199,4 +200,14 @@ public class Geometry {
     }
     public static double distToSegment(Point2D_I32 p, Point2D_I32 v, Point2D_I32 w) { return Math.sqrt(distToSegmentSquared(p, v, w)); }
 
+    public static List<Point2D> intersections(List<Point2D_I32> contour, Point2D_I32 center, double radius) {
+        List<Point2D> points = new LinkedList<>();
+        for (int i=0;i<contour.size();i++) {
+            Point2D_I32 a = contour.get(i);
+            Point2D_I32 b = contour.get((i+1)%contour.size());
+            Geometry.getCircleLineIntersectionPoint(a, b, center, radius, points);
+        }
+        return points;
+
+    }
 }

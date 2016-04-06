@@ -1,4 +1,4 @@
-package me.tomassetti.sketchmodel;
+package me.tomassetti.sketchmodel.modeling;
 
 import georegression.struct.point.Point2D_I32;
 

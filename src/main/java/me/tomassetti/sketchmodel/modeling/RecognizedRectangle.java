@@ -1,4 +1,4 @@
-package me.tomassetti.sketchmodel;
+package me.tomassetti.sketchmodel.modeling;
 
 /**
  * Created by federico on 06/04/16.

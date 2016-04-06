@@ -1,4 +1,4 @@
-package me.tomassetti.sketchmodel;
+package me.tomassetti.sketchmodel.modeling;
 
 /**
  * Different roles of points.

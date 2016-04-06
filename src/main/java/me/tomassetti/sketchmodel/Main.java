@@ -16,7 +16,11 @@ import boofcv.struct.ConnectRule;
 import boofcv.struct.image.GrayS16;
 import boofcv.struct.image.GrayU8;
 import georegression.struct.point.Point2D_I32;
+import me.tomassetti.sketchmodel.imageprocessing.Filtering;
 import me.tomassetti.sketchmodel.imageprocessing.Utils;
+import me.tomassetti.sketchmodel.modeling.ClassifiedPoint;
+import me.tomassetti.sketchmodel.modeling.PointType;
+import me.tomassetti.sketchmodel.modeling.RecognizedRectangle;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -28,29 +32,16 @@ import java.io.PrintWriter;
 import java.util.*;
 import java.util.List;
 
-public class Main {
+import static me.tomassetti.sketchmodel.imageprocessing.Drawing.*;
+import static me.tomassetti.sketchmodel.imageprocessing.Filtering.*;
+import static me.tomassetti.sketchmodel.Geometry.*;
+import static me.tomassetti.sketchmodel.modeling.Recognizer.*;
 
-    final static int WHITE = 255;
-    final static int BLACK = 0;
+public class Main {
 
     private static ListDisplayPanel listPanel = new ListDisplayPanel();
 
-    private static GrayU8 binaryToDrawable(GrayU8 image) {
-        GrayU8 drawable = new GrayU8(image.width,image.height);
-        for (int y=0;y<image.getHeight();y++) {
-            for (int x = 0; x < image.getWidth(); x++) {
-                if (image.get(x, y) > 0) {
-                    drawable.set(x, y, BLACK);
-                } else {
-                    drawable.set(x, y, WHITE);
-                }
-            }
-        }
-        return drawable;
-    }
-
     private static List<List<Point2D_I32>> identifyKeyPoints(BufferedImage image) {
-        //listPanel.addImage(image, "Phase 0");
         exaltColorDifferences(image);
 
         GrayU8 input = ConvertBufferedImage.convertFrom(image,(GrayU8)null);
@@ -70,13 +61,10 @@ public class Main {
 
         listPanel.addImage(binaryToDrawable(binary), "Phase II");
 
-        //binary = sharpen(binary);
-
         // reduce noise with some filtering
         GrayU8 filtered = BinaryImageOps.erode8(binary, 1, null);
         listPanel.addImage(binaryToDrawable(filtered), "Phase IIb");
         filtered = BinaryImageOps.dilate8(filtered, 1, null);
-
 
         listPanel.addImage(binaryToDrawable(filtered), "Phase III");
 
@@ -112,62 +100,6 @@ public class Main {
         listPanel.addImage(drawKeyPoints(image2, contours2, false), "Key points");
 
         return contours2;
-    }
-
-    private static BufferedImage drawContourns(List<Contour> contours, int width, int height) {
-        BufferedImage imageCountoursPure = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
-        Graphics2D gCountoursPure = imageCountoursPure.createGraphics();
-        gCountoursPure.setStroke(new BasicStroke(3));
-        for( Contour c : contours ) {
-            int i=0;
-            gCountoursPure.setColor(Color.RED);
-            for (Point2D_I32 p : c.external) {
-                Point2D_I32 b = c.external.get((i + 1)%c.external.size());
-                gCountoursPure.drawLine(p.x, p.y, b.x, b.y);
-                i++;
-            }
-
-            gCountoursPure.setColor(Color.BLUE);
-            for (List<Point2D_I32> anInternalC : c.internal) {
-                i=0;
-                for (Point2D_I32 p : anInternalC) {
-                    Point2D_I32 b = anInternalC.get((i + 1) % anInternalC.size());
-                    gCountoursPure.drawLine(p.x, p.y, b.x, b.y);
-                    i++;
-                }
-            }
-        }
-        return imageCountoursPure;
-    }
-
-    private static BufferedImage drawKeyPoints(BufferedImage image2, List<List<Point2D_I32>> contours2, boolean copyingimage) {
-        BufferedImage result = new BufferedImage(image2.getWidth(), image2.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
-        Graphics2D g3= result.createGraphics();
-        if (copyingimage) {
-            g3.drawImage(image2,0,0,null);
-        }
-        g3.setStroke(new BasicStroke(3));
-
-        int keyPoints = 0;
-
-        g3.setColor(Color.RED);
-        for( List<Point2D_I32> c : contours2 ) {
-            int i=0;
-            for (Point2D_I32 p : c) {
-                Point2D_I32 b = c.get((i + 1)%c.size());
-                g3.drawLine(p.x, p.y, b.x, b.y);
-                keyPoints++;
-                i++;
-            }
-        }
-
-        g3.setColor(Color.BLUE);
-        for( List<Point2D_I32> c : contours2 ) {
-            for (Point2D_I32 p : c) {
-                g3.fillOval(p.getX()-3, p.getY()-3, 6, 6);
-            }
-        }
-        return result;
     }
 
     private static void mergeCloseConsecutivePoints(List<List<Point2D_I32>> contours, double threshold) {
@@ -263,62 +195,13 @@ public class Main {
         shortSegmentKiller(contours, 3);
     }
 
-    public static void exaltColorDifferences(BufferedImage image) {
-        int factor = 5;
-        for (int y=0;y<image.getHeight();y++) {
-            for (int x=0;x<image.getWidth();x++) {
-                int color = image.getRGB(x, y);
-                int red = (color >> 16) & 255;
-                int green = (color >> 8) & 255;
-                int blue = (color >> 0) & 255;
-                //System.out.println("B red "+ red + " green "+ green + " blue "+blue);
-                red = red < 128 ? red/factor : 255-((255-red)/factor);
-                green = green < 128 ? green/factor : 255-((255-green)/factor);
-                blue = blue < 128 ? blue/factor : 255-((255-blue)/factor);
-                color = (red << 16) | (green << 8) | blue;
-                //System.out.println("A red "+ red + " green "+ green + " blue "+blue);
-                image.setRGB(x, y, color);
-            }
-        }
-    }
-
-    static class Point {
-        int x, y;
-
-        public Point(int x, int y) {
-            this.x = x;
-            this.y = y;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof Point)) return false;
-
-            Point point = (Point) o;
-
-            if (x != point.x) return false;
-            return y == point.y;
-
-        }
-
-        @Override
-        public int hashCode() {
-            int result = x;
-            result = 31 * result + y;
-            return result;
-        }
-    }
-
     /**
      * Consider only the points with strong derivates and remove the rest.
      */
-    private static GrayU8 derivateCleanser( GrayU8 input )
-    {
+    private static GrayU8 derivateCleanser( GrayU8 input ) {
         int blurRadius = 5;
 
         listPanel.addImage(input,"Derivates Input");
-        GrayU8 original = input.clone();
 
         GrayU8 blurred = new GrayU8(input.width,input.height);
         GrayS16 derivX = new GrayS16(input.width,input.height);
@@ -340,7 +223,6 @@ public class Main {
                 int totalDeriv = Math.abs(dx) + Math.abs(dy);
                 if (totalDeriv > derivThreshold) {
                     pointsWithStrongDerivates.put(new Point(x, y), true);
-                    //input.set(x, y, WHITE);
                 }
             }
         }
@@ -353,20 +235,19 @@ public class Main {
         int exploreTh = 20;
         for (int y=0; y<input.getHeight(); y++) {
             for (int x = 0; x < input.getWidth(); x++) {
-                //if (pointsWithStrongDerivates.containsKey(new Point(x, y))) {
-                    int total = 0;
-                    for (int dy = Math.max(0, y - exploreRadius); dy < Math.min(input.getHeight(), y + exploreRadius + 1); dy++) {
-                        for (int dx = Math.max(0, x - exploreRadius); dx < Math.min(input.getWidth(), x + exploreRadius + 1); dx++) {
-                            if (pointsWithStrongDerivates.containsKey(new Point(dx, dy))) {
-                                total++;
-                            }
+                int total = 0;
+                for (int dy = Math.max(0, y - exploreRadius); dy < Math.min(input.getHeight(), y + exploreRadius + 1); dy++) {
+                    for (int dx = Math.max(0, x - exploreRadius); dx < Math.min(input.getWidth(), x + exploreRadius + 1); dx++) {
+                        if (pointsWithStrongDerivates.containsKey(new Point(dx, dy))) {
+                            total++;
                         }
                     }
-                    if (total < exploreTh) {
-                        pointsToKeep.set(x, y, WHITE);
-                    } else {
-                        pointsToKeep.set(x, y, BLACK);
-                    }
+                }
+                if (total < exploreTh) {
+                    pointsToKeep.set(x, y, WHITE);
+                } else {
+                    pointsToKeep.set(x, y, BLACK);
+                }
             }
         }
         listPanel.addImage(pointsToKeep,"Derivates pointsToKeep");
@@ -380,24 +261,6 @@ public class Main {
         return pointsToKeep;
     }
 
-    public static void main( String args[] ) throws IOException {
-        //String filename = "images/state-flowchart.png";
-        String filename = "images/sm2.png";
-        //String filename = "images/sm5.png";
-
-        listPanel.addImage(ImageIO.read(new File(filename)), "original");
-
-        derivates(UtilImageIO.loadImage(filename, GrayU8.class));
-
-        List<List<Point2D_I32>> keyPoints = identifyKeyPoints(ImageIO.read(new File(filename)));
-        List<ClassifiedPoint> classifiedPoints = saveKeyPoints(keyPoints, ImageIO.read(new File(filename)), "training/SM2/");
-        List<RecognizedRectangle> rectangles = reconstructFigures(classifiedPoints);
-        saveRectangles(rectangles, ImageIO.read(new File(filename)), "training/SM2/");
-        System.out.println("Done.");
-
-        ShowImages.showWindow(listPanel, "Detected Lines", true);
-    }
-
     private static void saveRectangles(List<RecognizedRectangle> rectangles, BufferedImage originalImage, String path) throws IOException {
         int i = 0;
         for (RecognizedRectangle rectangle : rectangles) {
@@ -408,110 +271,8 @@ public class Main {
         }
     }
 
-    private static List<RecognizedRectangle> reconstructFigures(List<ClassifiedPoint> classifiedPoints) {
-        List<RecognizedRectangle> rectangles = new LinkedList<>();
-
-        // First phase: merge points with same role which are very close
-        Map<PointType, List<ClassifiedPoint>> byType = new HashMap<>();
-        for (PointType pt : PointType.values()) {
-            byType.put(pt, new LinkedList<>());
-        }
-        double maxDistance = 50;
-
-        for (ClassifiedPoint p : classifiedPoints) {
-            byType.get(p.getPointType()).add(p);
-        }
-
-        for (PointType pt : PointType.values()) {
-            for (int i = 0; i < byType.get(pt).size(); i++) {
-                boolean restart = false;
-                for (int j = i+1; j < byType.get(pt).size() && !restart; j++) {
-                    double distance = byType.get(pt).get(i).getPoint().distance(byType.get(pt).get(j).getPoint());
-                    if (distance < maxDistance) {
-                        ClassifiedPoint pj = byType.get(pt).remove(j);
-                        ClassifiedPoint pi = byType.get(pt).remove(i);
-                        System.out.println("MERGING "+pi.getName()+ " "+pj.getName());
-                        byType.get(pt).add(i, pi.merge(pj));
-                        restart = true;
-                        i--;
-                    }
-                }
-            }
-        }
-        int totalPoints = 0;
-        for (PointType pt : PointType.values()) {
-            totalPoints += byType.get(pt).size();
-        }
-        System.out.println("totalPoints "+ totalPoints);
-
-        // Starting from top left find closest bottom right
-        // at the right and below the given top left point
-        for (ClassifiedPoint topLeft : byType.get(PointType.CORNER_TOP_LEFT)) {
-            System.out.println("From Point left  "+ topLeft);
-            double minDistance = Double.MAX_VALUE;
-            ClassifiedPoint bottomRightSelected = null;
-            for (ClassifiedPoint bottomRight : byType.get(PointType.CORNER_BOTTOM_RIGHT)) {
-                if (bottomRight.getPoint().getX() > topLeft.getPoint().getX() && bottomRight.getPoint().getY() > topLeft.getPoint().getY()) {
-                    double distance = bottomRight.getPoint().distance(topLeft.getPoint());
-                    if (distance < minDistance) {
-                        minDistance = distance;
-                        bottomRightSelected = bottomRight;
-                    }
-                }
-            }
-            if (bottomRightSelected != null) {
-                System.out.println("Selected bottom right  "+ bottomRightSelected);
-                Point2D_I32 expectedTopRight = new Point2D_I32(bottomRightSelected.getPoint().x, topLeft.getPoint().y);
-                ClassifiedPoint topRightSelected = findClosestWithin(expectedTopRight, byType.get(PointType.CORNER_TOP_RIGHT), maxDistance * 1.5);
-                Point2D_I32 expectedBottomLeft = new Point2D_I32(topLeft.getPoint().x, bottomRightSelected.getPoint().y);
-                ClassifiedPoint bottomLeftSelected = findClosestWithin(expectedBottomLeft, byType.get(PointType.CORNER_BOTTOM_LEFT), maxDistance * 1.5);
-                if (topRightSelected != null) {
-                    System.out.println("Selected top right  "+ topRightSelected);
-                }
-                if (bottomLeftSelected != null) {
-                    System.out.println("Selected bottom left  "+ bottomLeftSelected);
-                }
-                if (topRightSelected != null && bottomLeftSelected != null) {
-                    rectangles.add(new RecognizedRectangle(topLeft, topRightSelected, bottomRightSelected, bottomLeftSelected));
-                }
-                System.out.println();
-            }
-        }
-
-        return rectangles;
-
-    }
-
-    private static ClassifiedPoint findClosestWithin(Point2D_I32 ref, List<ClassifiedPoint> classifiedPoints, double maxDistance) {
-        double minDistance = Double.MAX_VALUE;
-        ClassifiedPoint selected = null;
-        for (ClassifiedPoint candidate : classifiedPoints) {
-            double distance = candidate.getPoint().distance(ref);
-            if (distance < maxDistance && distance < minDistance) {
-                minDistance = distance;
-                selected = candidate;
-            }
-        }
-        return selected;
-    }
-
-    private static void derivates( GrayU8 input )
-    {
-        int blurRadius = 3;
-
-        GrayU8 blurred = new GrayU8(input.width,input.height);
-        GrayS16 derivX = new GrayS16(input.width,input.height);
-        GrayS16 derivY = new GrayS16(input.width,input.height);
-
-        // Gaussian blur: Convolve a Gaussian kernel
-        BlurImageOps.gaussian(input,blurred,-1,blurRadius,null);
-
-        // Calculate image's derivative
-        GradientSobel.process(blurred, derivX, derivY, FactoryImageBorderAlgs.extend(input));
-
-        // display the results
-        BufferedImage outputImage = VisualizeImageData.colorizeGradient(derivX, derivY, -1);
-        listPanel.addImage(outputImage,"Procedural Fixed Type");
+    private static void derivates(GrayU8 input) {
+        listPanel.addImage(Filtering.drawDerivates(input),"Procedural Fixed Type");
     }
 
     private static List<ClassifiedPoint> saveKeyPoints(List<List<Point2D_I32>> keyPoints, BufferedImage image, String path) throws IOException {
@@ -550,14 +311,14 @@ public class Main {
                 ImageIO.write(keyPointImage, "png", new File(path+"/"+pointName+".png"));
                 int nBuckets = 12;
                 double anglePortion = (Math.PI*2)/nBuckets;
-                //System.out.println( "[ "+pointName + " a 30 ]");
+
                 List<Point2D> points30 = intersections(contour, p, 30.0);
                 int[] buckets30 = new int[nBuckets];
                 points30.forEach(i -> {
                     int bucket = (int)(Geometry.angle(p, new Point2D_I32((int)i.getX(),(int)i.getY()))/anglePortion);
                     buckets30[bucket]++;
                 });
-                //System.out.println( "[ "+pointName + " a 100 ]");
+
                 List<Point2D> points100 = intersections(contour, p, 100.0);
                 int[] buckets100 = new int[nBuckets];
                 points100.forEach(i -> {
@@ -581,67 +342,6 @@ public class Main {
         return classifiedPoints;
     }
 
-    private static PointType classifyPoint(int[] buckets30, int[] buckets100) {
-        if (Arrays.equals(new int[]{0,0,0,1,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,1,0,1,0,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,1,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,1,0,0,1,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,0,0,0,1,0,0,1}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,0,0,0,1,0,0,1}, buckets100)) {
-            return PointType.CORNER_BOTTOM_LEFT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,0,0,0,0,1,0,1}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,0,0,0,0,0,0,1}, buckets100)) {
-            return PointType.CORNER_TOP_LEFT;
-        }
-        if (Arrays.equals(new int[]{1,0,0,1,0,0,0,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{1,0,0,0,0,0,0,0,0,1,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_LEFT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,1,0,0,0,0,0,0,0,1}, buckets30) && Arrays.equals(new int[]{0,0,0,1,0,0,0,0,0,0,0,1}, buckets100)) {
-            return PointType.CORNER_TOP_LEFT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,0,1,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,0,1,0,0,1,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,1,0,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,1,0,0,0,0,0,0,0,0,1}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,0,0,0,0,0,0,1}, buckets100)) {
-            return PointType.CORNER_TOP_LEFT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,0,1,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,0,1,0,0,1,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_RIGHT;
-        }
-        if (Arrays.equals(new int[]{1,0,0,0,0,0,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{1,0,0,0,0,0,0,0,0,1,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_LEFT;
-        }
-        if (Arrays.equals(new int[]{1,0,0,0,0,0,0,0,1,0,0,0}, buckets30) && Arrays.equals(new int[]{1,0,0,0,0,0,0,0,1,0,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_LEFT;
-        }
-        if (Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,1,0,0,1,0,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,0,1,0,1,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,1,0,0,1,0,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_RIGHT;
-        }
-        if (Arrays.equals(new int[]{1,0,1,0,0,0,0,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{1,0,1,0,0,0,0,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_LEFT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,1,0,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_RIGHT;
-        }
-        return null;
-    }
-
     private static void addRowLine(StringBuffer sb, String name, int[] buckets30, int[] buckets100) {
         sb.append(name);
         for (int v : buckets30) {
@@ -655,18 +355,21 @@ public class Main {
         sb.append("\n");
     }
 
-    private static List<Point2D> intersections(List<Point2D_I32> contour, Point2D_I32 center, double radius) {
-        List<Point2D> points = new LinkedList<>();
-        for (int i=0;i<contour.size();i++) {
-            Point2D_I32 a = contour.get(i);
-            Point2D_I32 b = contour.get((i+1)%contour.size());
-            Geometry.getCircleLineIntersectionPoint(a, b, center, radius, points);
-        }
-        return points;
+    public static void main( String args[] ) throws IOException {
+        //String filename = "images/state-flowchart.png";
+        String filename = "images/sm2.png";
+        //String filename = "images/sm5.png";
 
-    }
+        listPanel.addImage(ImageIO.read(new File(filename)), "original");
 
-    private static void drawCircle(int around, Graphics2D g, int highlightArea) {
-        g.drawOval(around - highlightArea, around - highlightArea, highlightArea*2, highlightArea*2);
+        derivates(UtilImageIO.loadImage(filename, GrayU8.class));
+
+        List<List<Point2D_I32>> keyPoints = identifyKeyPoints(ImageIO.read(new File(filename)));
+        List<ClassifiedPoint> classifiedPoints = saveKeyPoints(keyPoints, ImageIO.read(new File(filename)), "training/SM2/");
+        List<RecognizedRectangle> rectangles = reconstructFigures(classifiedPoints);
+        saveRectangles(rectangles, ImageIO.read(new File(filename)), "training/SM2/");
+        System.out.println("Done.");
+
+        ShowImages.showWindow(listPanel, "Detected Lines", true);
     }
 }

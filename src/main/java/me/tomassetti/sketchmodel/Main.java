@@ -1,15 +1,11 @@
 package me.tomassetti.sketchmodel;
 
-import boofcv.abst.denoise.FactoryImageDenoise;
-import boofcv.abst.denoise.WaveletDenoiseFilter;
-import boofcv.alg.enhance.EnhanceImageOps;
 import boofcv.alg.filter.binary.BinaryImageOps;
 import boofcv.alg.filter.binary.Contour;
 import boofcv.alg.filter.binary.ThresholdImageOps;
 import boofcv.alg.filter.blur.BlurImageOps;
 import boofcv.alg.filter.derivative.GradientSobel;
 import boofcv.alg.misc.ImageStatistics;
-import boofcv.core.image.ConvertImage;
 import boofcv.core.image.border.FactoryImageBorderAlgs;
 import boofcv.gui.ListDisplayPanel;
 import boofcv.gui.image.ShowImages;
@@ -17,93 +13,27 @@ import boofcv.gui.image.VisualizeImageData;
 import boofcv.io.image.ConvertBufferedImage;
 import boofcv.io.image.UtilImageIO;
 import boofcv.struct.ConnectRule;
-import boofcv.struct.image.GrayF32;
 import boofcv.struct.image.GrayS16;
 import boofcv.struct.image.GrayU8;
 import georegression.struct.point.Point2D_I32;
+import me.tomassetti.sketchmodel.imageprocessing.Utils;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
-import java.awt.image.ColorModel;
-import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.*;
 import java.util.List;
 
-/**
- * Created by federico on 28/03/16.
- */
 public class Main {
 
     final static int WHITE = 255;
     final static int BLACK = 0;
 
-    // adjusts edge threshold for identifying pixels belonging to a line
-    private static final float edgeThreshold = 25;
-    // adjust the maximum number of found lines in the image
-    private static final int maxLines = 10;
-
     private static ListDisplayPanel listPanel = new ListDisplayPanel();
-
-    static BufferedImage deepCopy(BufferedImage bi) {
-        ColorModel cm = bi.getColorModel();
-        boolean isAlphaPremultiplied = cm.isAlphaPremultiplied();
-        WritableRaster raster = bi.copyData(null);
-        return new BufferedImage(cm, raster, isAlphaPremultiplied, null);
-    }
-
-    static BufferedImage copyImage(BufferedImage bi) {
-        BufferedImage copyOfImage =
-                new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_INT_RGB);
-        Graphics g = copyOfImage.createGraphics();
-        g.drawImage(bi, 0, 0, null);
-        return copyOfImage;
-    }
-
-    private static GrayU8 removeNoise(GrayU8 binary) {
-        // How many levels in wavelet transform
-        int numLevels = 8;
-        // Create the noise removal algorithm
-        WaveletDenoiseFilter<GrayF32> denoiser =
-                FactoryImageDenoise.waveletBayes(GrayF32.class,numLevels,0,255);
-        // remove noise from the image
-        GrayF32 denoised = new GrayF32(binary.width,binary.height);
-        GrayF32 binaryF32 = ConvertImage.convert(binary,(GrayF32)null);
-        denoiser.process(binaryF32, denoised);
-        return ConvertImage.convert(denoised,(GrayU8)null);
-    }
-
-    public static GrayU8 histogram(GrayU8 gray) {
-        GrayU8 adjusted = gray.createSameShape();
-
-        int histogram[] = new int[256];
-        int transform[] = new int[256];
-
-
-        ImageStatistics.histogram(gray, histogram);
-        EnhanceImageOps.equalize(histogram, transform);
-        EnhanceImageOps.applyTransform(gray, transform, adjusted);
-
-        EnhanceImageOps.equalizeLocal(gray, 50, adjusted, histogram, transform);
-        return adjusted;
-    }
-
-    /**
-     * When an image is sharpened the intensity of edges are made more extreme while flat regions remain unchanged.
-     */
-    public static GrayU8 sharpen(GrayU8 gray) {
-        GrayU8 adjusted = gray.createSameShape();
-
-
-        EnhanceImageOps.sharpen4(gray, adjusted);
-
-        EnhanceImageOps.sharpen8(gray, adjusted);
-        return adjusted;
-    }
 
     private static GrayU8 binaryToDrawable(GrayU8 image) {
         GrayU8 drawable = new GrayU8(image.width,image.height);
@@ -160,18 +90,7 @@ public class Main {
 
         listPanel.addImage(drawContourns(contours, filtered.getWidth(), filtered.getHeight()), "Contours Filtered");
 
-        BufferedImage image2 = deepCopy(image);
-
-        /*Graphics2D g2 = image.createGraphics();
-        g2.setStroke(new BasicStroke(3));
-        g2.setColor(Color.RED);
-
-        for( Contour c : contours ) {
-            List<PointIndex_I32> polygon = ShapeFittingOps.fitPolygon(c.external,true,0.05,0.01,50);
-            VisualizeShapes.drawPolygon(polygon, true,g2);
-        }
-
-        listPanel.addImage(image, "Contours Fitted");*/
+        BufferedImage image2 = Utils.deepCopy(image);
 
         double minContourLength = 500;
 
@@ -188,7 +107,6 @@ public class Main {
 
         listPanel.addImage(drawKeyPoints(image2, contours2, false), "Key points (not simplified)");
 
-        //List<List<Point2D_I32>> contours2 = contours.stream().map(c -> c.external).collect(Collectors.<List<Point2D_I32>>toList());
         simplifyContourns(contours2);
 
         listPanel.addImage(drawKeyPoints(image2, contours2, false), "Key points");
@@ -291,9 +209,6 @@ public class Main {
                 double lengthOfMidSegment = pb.distance(pc);
                 double lengthOfNextSegment = pc.distance(pd);
 
-                //System.out.println("lengthOfPrevSegment " + lengthOfPrevSegment);
-                //System.out.println("lengthOfMidSegment " + lengthOfMidSegment);
-                //System.out.println("lengthOfNextSegment " + lengthOfNextSegment);
                 Point2D_I32 midPoint = new Point2D_I32((pb.x+pc.x)/2, (pb.y+pc.y)/2);
                 double anglePrevBefore = Geometry.angle(pa, pb);
                 double anglePrevAfter = Geometry.angle(pa, midPoint);
@@ -302,9 +217,7 @@ public class Main {
                 double distanceAnglePrev = Geometry.angleDistance(anglePrevBefore, anglePrevAfter);
                 double distanceAngleNext = Geometry.angleDistance(angleNextBefore, angleNextAfter);
                 double angleDiffTh = 0.18;
-                //System.out.println("anglePrevBefore " + anglePrevBefore+ " anglePrevAfter " + anglePrevAfter);
-                //System.out.println("angleNextBefore " + angleNextBefore+ " angleNextAfter " + angleNextAfter);
-                //System.out.println("distanceAnglePrev " + distanceAnglePrev+ " distanceAngleNext " + distanceAngleNext);
+
                 boolean isShort = lengthOfMidSegment < shortTh;
                 boolean isShortComparedToSorrounding = lengthOfMidSegment < lengthOfPrevSegment/factor && lengthOfMidSegment < lengthOfNextSegment/factor;
                 if ((isShort || isShortComparedToSorrounding)
@@ -314,7 +227,6 @@ public class Main {
                     c.add(pi, midPoint);
                     c.remove((pi + 1) % c.size());
                 }
-                //System.out.println();
             }
         }
     }
@@ -450,16 +362,11 @@ public class Main {
                             }
                         }
                     }
-                    //System.out.println(total);
                     if (total < exploreTh) {
-                        //input.set(x, y, WHITE);
                         pointsToKeep.set(x, y, WHITE);
                     } else {
                         pointsToKeep.set(x, y, BLACK);
                     }
-                /*} else {
-                    input.set(x, y, WHITE);
-                }*/
             }
         }
         listPanel.addImage(pointsToKeep,"Derivates pointsToKeep");
@@ -663,8 +570,6 @@ public class Main {
                     System.out.println("Point "+ pointName + " is "+ res+ " at " + p);
                     classifiedPoints.add(new ClassifiedPoint(pointName, p, res));
                 }
-                //System.out.println( " at 30: " + Arrays.toString(buckets30));
-                //System.out.println( " at 100: " + Arrays.toString(buckets100));
             }
         }
         File dataFile = new File(path+"/data.csv");
@@ -734,32 +639,6 @@ public class Main {
         if (Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,1,0,0,0,0,0,0}, buckets100)) {
             return PointType.CORNER_TOP_RIGHT;
         }
-        //           0,0,0,0,0,1,0,0,0,1,0,0, 0,0,1,0,0,1,0,0,0,0,0,0
-        //           1,0,0,0,0,0,0,0,0,1,0,0, 1,0,0,0,0,0,0,0,0,1,0,0
-        //           1,0,1,0,0,0,0,0,0,0,0,0, 1,0,1,0,0,0,0,0,0,0,0,0
-        //           0,0,1,0,0,0,1,0,0,0,0,0 ,0,0,1,0,0,0,1,0,0,0,0,0
-        //           0,0,0,0,0,0,1,0,1,0,0,0, 0,0,0,0,0,1,0,0,1,0,0,0
-        //           0,0,0,0,0,1,0,0,0,1,0,0, 0,0,0,0,0,1,0,0,1,0,0,0
-        //           0,0,1,0,0,0,1,0,0,0,0,0, 0,0,1,0,0,0,1,0,0,0,0,0
-        //           1,0,0,0,0,0,0,0,1,0,0,0, 1,0,0,0,0,0,0,0,1,0,0,0
-        //point_1_1, 0,0,0,1,0,0,1,0,0,0,0,0, 0,0,0,1,0,1,0,0,0,0,0,0
-
-        //point_1_2, 0,0,0,1,0,0,1,0,0,0,0,0, 0,0,0,1,0,0,1,0,0,0,0,0
-        //point_1_11,0,0,0,0,0,1,0,0,0,1,0,0, 0,0,0,0,0,1,0,0,0,1,0,0
-
-        //point_1_12,0,0,0,0,0,0,0,0,1,0,0,1, 0,0,0,0,0,0,0,0,1,0,0,1
-
-        //point_1_13,0,0,0,0,0,0,0,0,0,1,0,1, 0,0,1,0,0,0,0,0,0,0,0,1
-
-        //point_1_19,1,0,0,1,0,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,0,1,0,0
-        //point_1_20,0,0,0,1,0,0,0,0,0,0,0,1, 0,0,0,1,0,0,0,0,0,0,0,1
-        //point_3_3  0,0,0,0,0,0,1,0,0,1,0,0, 0,0,0,0,0,0,1,0,0,1,0,0
-        //point_3_5  0,0,1,0,0,0,1,0,0,0,0,0, 0,0,1,0,0,1,0,0,0,0,0,0
-        //point_5_6, 0,0,1,0,0,0,0,0,0,0,0,1, 0,0,1,0,0,0,0,0,0,0,0,1
-        //point_5_10,0,0,0,1,0,0,1,0,0,0,0,0, 0,0,0,1,0,0,1,0,0,0,0,0
-        //point_6_3, 0,0,0,0,0,0,1,0,0,1,0,0, 0,0,0,0,0,0,1,0,0,1,0,0
-        //point_6_21,1,0,0,0,0,0,0,0,0,1,0,0, 1,0,0,0,0,0,0,0,0,1,0,0
-        //      11_3,1,0,0,0,0,0,0,0,0,1,0,0, 1,0,0,0,0,0,0,0,0,1,0,0
         return null;
     }
 
@@ -783,9 +662,6 @@ public class Main {
             Point2D_I32 b = contour.get((i+1)%contour.size());
             Geometry.getCircleLineIntersectionPoint(a, b, center, radius, points);
         }
-        /*for (Point2D p : points) {
-            System.out.println( " * "+center+ " to " + p+ " angle "+ Geometry.angle(center, new Point2D_I32((int)p.getX(),(int)p.getY())));
-        }*/
         return points;
 
     }

@@ -1,4 +1,4 @@
-package me.tomassetti.fhp;
+package me.tomassetti.sketchmodel;
 
 /**
  * Created by federico on 06/04/16.

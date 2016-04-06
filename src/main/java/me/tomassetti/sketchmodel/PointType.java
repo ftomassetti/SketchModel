@@ -1,7 +1,7 @@
-package me.tomassetti.fhp;
+package me.tomassetti.sketchmodel;
 
 /**
- * Created by federico on 05/04/16.
+ * Different roles of points.
  */
 public enum PointType {
     CORNER_TOP_RIGHT,

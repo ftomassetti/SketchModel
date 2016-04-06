@@ -1,11 +1,9 @@
+package me.tomassetti.sketchmodel;
+
 import georegression.struct.point.Point2D_I32;
-import me.tomassetti.fhp.Geometry;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-/**
- * Created by federico on 04/04/16.
- */
 public class GeometryTest {
 
     @Test

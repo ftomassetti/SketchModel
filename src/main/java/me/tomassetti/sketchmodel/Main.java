@@ -1,4 +1,4 @@
-package me.tomassetti.fhp;
+package me.tomassetti.sketchmodel;
 
 import boofcv.abst.denoise.FactoryImageDenoise;
 import boofcv.abst.denoise.WaveletDenoiseFilter;
@@ -330,7 +330,7 @@ public class Main {
                 Point2D_I32 pointI = c.get(pi);
                 Point2D_I32 pointJ = c.get(pj);
                 Point2D_I32 pointZ = c.get(pz);
-                double d = MyMath.distToSegment(pointJ, pointI, pointZ);
+                double d = Geometry.distToSegment(pointJ, pointI, pointZ);
                 if (d < threshold) {
                     c.remove(pj);
                     running = false;

@@ -1,10 +1,20 @@
-package me.tomassetti.fhp;
+package me.tomassetti.sketchmodel;
 
 import georegression.struct.point.Point2D_I32;
 
+/**
+ * A point which has been recognized to be of a certain type.
+ */
 public class ClassifiedPoint {
     private Point2D_I32 point;
     private String name;
+    private PointType pointType;
+
+    public ClassifiedPoint(String name, Point2D_I32 point, PointType pointType) {
+        this.name = name;
+        this.point = point;
+        this.pointType = pointType;
+    }
 
     @Override
     public String toString() {
@@ -40,14 +50,6 @@ public class ClassifiedPoint {
         return name;
     }
 
-    public ClassifiedPoint(String name, Point2D_I32 point, PointType pointType) {
-        this.name = name;
-        this.point = point;
-        this.pointType = pointType;
-    }
-
-    private PointType pointType;
-
     public Point2D_I32 getPoint() {
         return point;
     }
@@ -57,8 +59,8 @@ public class ClassifiedPoint {
     }
 
     public ClassifiedPoint merge(ClassifiedPoint other) {
-        return new ClassifiedPoint(this.getName()+"_merged_"+other.getName(),
-                new Point2D_I32((this.getPoint().x+other.getPoint().x)/2, (this.getPoint().y+other.getPoint().y)/2),
+        return new ClassifiedPoint(this.getName() + "_merged_" + other.getName(),
+                new Point2D_I32((this.getPoint().x + other.getPoint().x) / 2, (this.getPoint().y + other.getPoint().y) / 2),
                 pointType);
     }
 }

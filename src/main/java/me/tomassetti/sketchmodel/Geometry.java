@@ -1,16 +1,14 @@
-package me.tomassetti.fhp;
+package me.tomassetti.sketchmodel;
 
 import boofcv.alg.filter.binary.Contour;
 import georegression.struct.line.LineSegment2D_F32;
 import georegression.struct.point.Point2D_I32;
 
 import java.awt.geom.Point2D;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 /**
- * Created by federico on 01/04/16.
+ * Basic geometry utilities.
  */
 public class Geometry {
 
@@ -189,5 +187,16 @@ public class Geometry {
             list.add(p2);
         }
     }
+
+    public static double sqr(double x) { return x * x; }
+    public static double dist2(Point2D_I32 v, Point2D_I32 w) { return sqr(v.x - w.x) + sqr(v.y - w.y); }
+    public static double distToSegmentSquared(Point2D_I32 p, Point2D_I32 v, Point2D_I32 w) {
+        double l2 = dist2(v, w);
+        if (l2 == 0) return dist2(p, v);
+        double t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        return dist2(p, new Point2D_I32((int)(v.x + t * (w.x - v.x)), (int)(v.y + t * (w.y - v.y))));
+    }
+    public static double distToSegment(Point2D_I32 p, Point2D_I32 v, Point2D_I32 w) { return Math.sqrt(distToSegmentSquared(p, v, w)); }
 
 }

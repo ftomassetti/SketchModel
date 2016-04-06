@@ -1,4 +1,4 @@
-package me.tomassetti.fhp;
+package me.tomassetti.sketchmodel;
 
 import weka.classifiers.trees.RandomTree;
 import weka.core.DenseInstance;
@@ -9,7 +9,6 @@ import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;

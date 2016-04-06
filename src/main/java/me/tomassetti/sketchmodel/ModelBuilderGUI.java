@@ -37,7 +37,7 @@ import static me.tomassetti.sketchmodel.imageprocessing.Filtering.*;
 import static me.tomassetti.sketchmodel.Geometry.*;
 import static me.tomassetti.sketchmodel.modeling.Recognizer.*;
 
-public class Main {
+public class ModelBuilderGUI {
 
     private static ListDisplayPanel listPanel = new ListDisplayPanel();
 

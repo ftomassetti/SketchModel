@@ -58,11 +58,15 @@ public class Recognizer {
                 }
             }
             if (bottomRightSelected != null) {
+                int w = bottomRightSelected.getPoint().getX() - topLeft.getPoint().getX();
+                int h = bottomRightSelected.getPoint().getY() - topLeft.getPoint().getY();
+                double radiusForMatchingCorner = Math.max(w, h) * 0.25;
+
                 System.out.println("Selected bottom right  "+ bottomRightSelected);
                 Point2D_I32 expectedTopRight = new Point2D_I32(bottomRightSelected.getPoint().x, topLeft.getPoint().y);
-                ClassifiedPoint topRightSelected = findClosestWithin(expectedTopRight, byType.get(PointType.CORNER_TOP_RIGHT), maxDistance * 1.5);
+                ClassifiedPoint topRightSelected = findClosestWithin(expectedTopRight, byType.get(PointType.CORNER_TOP_RIGHT), radiusForMatchingCorner);
                 Point2D_I32 expectedBottomLeft = new Point2D_I32(topLeft.getPoint().x, bottomRightSelected.getPoint().y);
-                ClassifiedPoint bottomLeftSelected = findClosestWithin(expectedBottomLeft, byType.get(PointType.CORNER_BOTTOM_LEFT), maxDistance * 1.5);
+                ClassifiedPoint bottomLeftSelected = findClosestWithin(expectedBottomLeft, byType.get(PointType.CORNER_BOTTOM_LEFT), radiusForMatchingCorner);
                 if (topRightSelected != null) {
                     System.out.println("Selected top right  "+ topRightSelected);
                 }

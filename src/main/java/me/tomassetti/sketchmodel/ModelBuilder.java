@@ -480,6 +480,8 @@ public class ModelBuilder {
         if (drawRectanglesOnOriginal) {
             drawRectanglesOnOriginal(rectangles, ImageIO.read(new File(imageFilename)), highlightedImagePath);
         }
+        System.out.println("Rectangles found: "+ rectangles.size());
+
         System.out.println("Done.");
     }
 

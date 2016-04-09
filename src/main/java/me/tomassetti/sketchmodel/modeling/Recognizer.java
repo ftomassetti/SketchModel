@@ -76,7 +76,28 @@ public class Recognizer {
             }
         }
 
+        removeOverlappingRectangles(rectangles);
         return rectangles;
+    }
+
+    private static void removeOverlappingRectangles(List<RecognizedRectangle> rectangles) {
+        for (int i=0;i<rectangles.size();i++){
+            for (int j=i+1;j<rectangles.size();j++){
+                int overlappingArea = rectangles.get(i).getOverlappingArea(rectangles.get(j));
+                if (overlappingArea > 0) {
+                    if (rectangles.get(i).getArea()>rectangles.get(j).getArea()){
+                        System.out.println("REMOVING "+rectangles.get(j));
+                        rectangles.remove(j);
+                        j--;
+                    } else {
+                        System.out.println("REMOVING "+rectangles.get(i));
+                        rectangles.remove(i);
+                        i--;
+                        j=i+1;
+                    }
+                }
+            }
+        }
     }
 
     private static ClassifiedPoint findClosestWithin(Point2D_I32 ref, List<ClassifiedPoint> classifiedPoints, double maxDistance) {

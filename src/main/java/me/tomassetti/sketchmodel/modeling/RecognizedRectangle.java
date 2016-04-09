@@ -67,4 +67,20 @@ public class RecognizedRectangle {
         this.bottomLeft = bottomLeft;
         this.bottomRight = bottomRight;
     }
+
+    public int getOverlappingArea(RecognizedRectangle other) {
+        int newX = Math.max(this.getLeft(), other.getLeft());
+        int newY = Math.max(this.getTop(), other.getTop());
+
+        int newWidth = Math.min(this.getLeft() + this.getWidth(), other.getLeft() + other.getWidth()) - newX;
+        int newHeight = Math.min(this.getTop() + this.getHeight(), other.getTop() + other.getHeight()) - newY;
+
+        if (newWidth <= 0d || newHeight <= 0d) return 0;
+
+        return newWidth * newHeight;
+    }
+
+    public int getArea() {
+        return getWidth() * getHeight();
+    }
 }

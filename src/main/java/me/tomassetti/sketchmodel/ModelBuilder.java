@@ -48,6 +48,11 @@ public class ModelBuilder {
 
     private ImageShower imageShower;
     private boolean saveKeyPoints = false;
+    private boolean drawRectanglesOnOriginal = true;
+
+    public void setDrawRectanglesOnOriginal(boolean drawRectanglesOnOriginal) {
+        this.drawRectanglesOnOriginal = drawRectanglesOnOriginal;
+    }
 
     public void setSaveRectangles(boolean saveRectangles) {
         this.saveRectangles = saveRectangles;
@@ -445,6 +450,17 @@ public class ModelBuilder {
         System.out.println("[Timing] "+desc+ " : "+ deltaTime);
     }
 
+    private void drawRectanglesOnOriginal(List<RecognizedRectangle> rectangles, BufferedImage originalImage, String path) throws IOException {
+        Graphics2D g2 = (Graphics2D) originalImage.getGraphics();
+        for (RecognizedRectangle rectangle : rectangles) {
+            g2.setColor(Color.GREEN);
+            g2.drawRect(rectangle.getLeft(),rectangle.getTop(), rectangle.getWidth(), rectangle.getHeight());
+            g2.setColor(new Color(0,255,0,128));
+            g2.fillRect(rectangle.getLeft(),rectangle.getTop(), rectangle.getWidth(), rectangle.getHeight());
+        }
+        ImageIO.write(originalImage, "png", new File(path+"/rectangles_in_image.png"));
+    }
+
     public void run(String imageFilename, String keypointsSaveDir, String shapesSaveDir) throws IOException {
         startTime = System.currentTimeMillis();
         List<List<Point2D_I32>> keyPoints = identifyKeyPoints(ImageIO.read(new File(imageFilename)));
@@ -462,6 +478,9 @@ public class ModelBuilder {
         saveRectangles = true;
         if (saveRectangles) {
             saveRectangles(rectangles, ImageIO.read(new File(imageFilename)), shapesSaveDir);
+        }
+        if (drawRectanglesOnOriginal) {
+            drawRectanglesOnOriginal(rectangles, ImageIO.read(new File(imageFilename)), shapesSaveDir);
         }
         System.out.println("Done.");
     }

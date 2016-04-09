@@ -23,12 +23,12 @@ public class ModelBuilderConsole {
         return new ModelBuilder.ImageShower() {
             @Override
             public void show(GrayU8 image, String name) {
-                // do nothing
+                System.out.println("Calculated "+name);
             }
 
             @Override
             public void show(BufferedImage image, String name) {
-                // do nothing
+                System.out.println("Calculated "+name);
             }
 
             @Override
@@ -49,7 +49,6 @@ public class ModelBuilderConsole {
 
         ModelBuilderConsole instance = new ModelBuilderConsole();
         ModelBuilder modelBuilder = new ModelBuilder(instance.imageShower());
-        ShowImages.showWindow(instance.listPanel, "Shape detector", true);
         instance.imageShower().show(ImageIO.read(new File(imageFilename)), "original");
         instance.showDerivates(UtilImageIO.loadImage(imageFilename, GrayU8.class));
         modelBuilder.run(imageFilename, keypointsSaveDir, shapesSaveDir);

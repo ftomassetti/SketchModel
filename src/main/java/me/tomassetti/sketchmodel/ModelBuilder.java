@@ -7,17 +7,12 @@ import boofcv.alg.filter.blur.BlurImageOps;
 import boofcv.alg.filter.derivative.GradientSobel;
 import boofcv.alg.misc.ImageStatistics;
 import boofcv.core.image.border.FactoryImageBorderAlgs;
-import boofcv.gui.ListDisplayPanel;
-import boofcv.gui.image.ShowImages;
 import boofcv.gui.image.VisualizeImageData;
 import boofcv.io.image.ConvertBufferedImage;
-import boofcv.io.image.UtilImageIO;
 import boofcv.struct.ConnectRule;
 import boofcv.struct.image.GrayS16;
 import boofcv.struct.image.GrayU8;
-import com.sun.org.apache.xpath.internal.operations.Mod;
 import georegression.struct.point.Point2D_I32;
-import me.tomassetti.sketchmodel.imageprocessing.Filtering;
 import me.tomassetti.sketchmodel.imageprocessing.Utils;
 import me.tomassetti.sketchmodel.modeling.ClassifiedPoint;
 import me.tomassetti.sketchmodel.modeling.PointType;
@@ -43,6 +38,8 @@ import static me.tomassetti.sketchmodel.modeling.Recognizer.reconstructFigures;
 
 public class ModelBuilder {
 
+    private long startTime;
+
     public interface ImageShower {
         boolean verbose();
         void show(GrayU8 image, String name);
@@ -50,6 +47,17 @@ public class ModelBuilder {
     }
 
     private ImageShower imageShower;
+    private boolean saveKeyPoints = false;
+
+    public void setSaveRectangles(boolean saveRectangles) {
+        this.saveRectangles = saveRectangles;
+    }
+
+    private boolean saveRectangles = false;
+
+    public void setSaveKeyPoints(boolean saveKeyPoints) {
+        this.saveKeyPoints = saveKeyPoints;
+    }
 
     public ModelBuilder(ImageShower imageShower) {
         this.imageShower = imageShower;
@@ -62,8 +70,11 @@ public class ModelBuilder {
         GrayU8 binary = new GrayU8(input.width,input.height);
 
         imageShower.show(input, "Phase I");
+        logTime("Phase I");
 
         input = derivateCleanser(derivateCleanser(input));
+
+        logTime("Phase Ib");
 
         imageShower.show(input, "Phase Ib");
 
@@ -77,6 +88,7 @@ public class ModelBuilder {
         if (imageShower.verbose()) {
             imageShower.show(binaryToDrawable(binary), "Phase II");
         }
+        logTime("Phase II");
 
         // reduce noise with some filtering
         GrayU8 filtered = BinaryImageOps.erode8(binary, 1, null);
@@ -90,6 +102,7 @@ public class ModelBuilder {
         if (imageShower.verbose()) {
             imageShower.show(binaryToDrawable(filtered), "Phase III");
         }
+        logTime("Phase III");
 
         // Find the contour around the shapes
         List<Contour> contours = BinaryImageOps.contour(filtered, ConnectRule.EIGHT,null);
@@ -127,7 +140,11 @@ public class ModelBuilder {
             imageShower.show(drawKeyPoints(image2, contours2, false), "Key points (not simplified)");
         }
 
+        logTime("Phase IV");
+
         simplifyContourns(contours2);
+
+        logTime("Phase V");
 
         // To avoid the image conversion
         if (imageShower.verbose()) {
@@ -245,8 +262,12 @@ public class ModelBuilder {
         // Gaussian blur: Convolve a Gaussian kernel
         BlurImageOps.gaussian(input,blurred,-1,blurRadius,null);
 
+        logTime("derivateCleanser a");
+
         // Calculate image's derivative
         GradientSobel.process(blurred, derivX, derivY, FactoryImageBorderAlgs.extend(input));
+
+        logTime("derivateCleanser b");
 
         // First I save on a matrix if the point has a strong derivative
         int derivThreshold = 100;
@@ -261,6 +282,8 @@ public class ModelBuilder {
                 }
             }
         }
+
+        logTime("derivateCleanser c");
 
         GrayU8 pointsToKeep = new GrayU8(input.width,input.height);
 
@@ -285,13 +308,18 @@ public class ModelBuilder {
                 }
             }
         }
+        logTime("derivateCleanser d");
         imageShower.show(pointsToKeep,"Derivates pointsToKeep");
 
         // display the results
-        BufferedImage outputImage = VisualizeImageData.colorizeGradient(derivX, derivY, -1);
-        imageShower.show(outputImage,"Derivates");
+        if (imageShower.verbose()) {
+            BufferedImage outputImage = VisualizeImageData.colorizeGradient(derivX, derivY, -1);
+            imageShower.show(outputImage, "Derivates");
+        }
         imageShower.show(input,"Derivates Cleansed");
         imageShower.show(input,"Derivates Output");
+
+        logTime("derivateCleanser e");
 
         return pointsToKeep;
     }
@@ -306,7 +334,7 @@ public class ModelBuilder {
         }
     }
 
-    private List<ClassifiedPoint> saveKeyPoints(List<List<Point2D_I32>> keyPoints, BufferedImage image, String path) throws IOException {
+    private void saveKeyPointsImages(List<List<Point2D_I32>> keyPoints, BufferedImage image, String path) throws IOException {
         List<ClassifiedPoint> classifiedPoints = new LinkedList<>();
 
         StringBuffer data = new StringBuffer();
@@ -328,7 +356,6 @@ public class ModelBuilder {
                 g.setColor(Color.WHITE);
                 g.fillRect(0, 0, around*2+1, around*2+1);
                 g.drawImage(imageWithOnlyThisContour.getSubimage(left, top, right-left, bottom-top), around + left - p.x, around + top - p.y, null);
-                //BufferedImage portion = copyImage(image.getSubimage(left, top, right-left, bottom-top));
 
                 // highlight the point
                 int highlightArea = 7;
@@ -340,6 +367,21 @@ public class ModelBuilder {
 
                 String pointName = "point_"+cindex+"_"+pindex;
                 ImageIO.write(keyPointImage, "png", new File(path+"/"+pointName+".png"));
+            }
+        }
+    }
+
+    private List<ClassifiedPoint> processKeyPoints(List<List<Point2D_I32>> keyPoints, BufferedImage image, String path) throws IOException {
+        List<ClassifiedPoint> classifiedPoints = new LinkedList<>();
+
+        int cindex = 0;
+        for (List<Point2D_I32> contour : keyPoints) {
+            cindex++;
+            int pindex = 0;
+            for (Point2D_I32 p : contour) {
+                pindex++;
+
+                String pointName = "point_"+cindex+"_"+pindex;
                 int nBuckets = 12;
                 double anglePortion = (Math.PI*2)/nBuckets;
 
@@ -356,7 +398,6 @@ public class ModelBuilder {
                     int bucket = (int)(Geometry.angle(p, new Point2D_I32((int)i.getX(),(int)i.getY()))/anglePortion);
                     buckets100[bucket]++;
                 });
-                addRowLine(data, pointName, buckets30, buckets100);
                 PointType res = classifyPoint(buckets30, buckets100);
                 if (res != null) {
                     System.out.println("Point "+ pointName + " is "+ res+ " at " + p);
@@ -364,34 +405,29 @@ public class ModelBuilder {
                 }
             }
         }
-        File dataFile = new File(path+"/data.csv");
-        PrintWriter out = new PrintWriter(dataFile);
-        out.println("name,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f112,classification");
-        out.print(data.toString());
-        out.close();
-
         return classifiedPoints;
     }
 
-    private void addRowLine(StringBuffer sb, String name, int[] buckets30, int[] buckets100) {
-        sb.append(name);
-        for (int v : buckets30) {
-            sb.append(",");
-            sb.append(v);
-        }
-        for (int v : buckets100) {
-            sb.append(",");
-            sb.append(v);
-        }
-        sb.append("\n");
+    private void logTime(String desc) {
+        long deltaTime = System.currentTimeMillis() - startTime;
+        System.out.println(""+desc+ " : "+ deltaTime);
     }
 
     public void run(String imageFilename, String keypointsSaveDir, String shapesSaveDir) throws IOException {
+        startTime = System.currentTimeMillis();
         List<List<Point2D_I32>> keyPoints = identifyKeyPoints(ImageIO.read(new File(imageFilename)));
+        logTime("key points identified");
 
-        List<ClassifiedPoint> classifiedPoints = saveKeyPoints(keyPoints, ImageIO.read(new File(imageFilename)), keypointsSaveDir);
+        List<ClassifiedPoint> classifiedPoints = processKeyPoints(keyPoints, ImageIO.read(new File(imageFilename)), keypointsSaveDir);
+        logTime("key points processed");
+        if (saveKeyPoints) {
+            saveKeyPointsImages(keyPoints, ImageIO.read(new File(imageFilename)), keypointsSaveDir);
+        }
         List<RecognizedRectangle> rectangles = reconstructFigures(classifiedPoints);
-        saveRectangles(rectangles, ImageIO.read(new File(imageFilename)), shapesSaveDir);
+        logTime("Shapes reconstructed");
+        if (saveRectangles) {
+            saveRectangles(rectangles, ImageIO.read(new File(imageFilename)), shapesSaveDir);
+        }
         System.out.println("Done.");
     }
 

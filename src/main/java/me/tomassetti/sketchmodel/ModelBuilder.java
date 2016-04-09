@@ -450,7 +450,7 @@ public class ModelBuilder {
         System.out.println("[Timing] "+desc+ " : "+ deltaTime);
     }
 
-    private void drawRectanglesOnOriginal(List<RecognizedRectangle> rectangles, BufferedImage originalImage, String path) throws IOException {
+    private void drawRectanglesOnOriginal(List<RecognizedRectangle> rectangles, BufferedImage originalImage, String highlightedImagePath) throws IOException {
         Graphics2D g2 = (Graphics2D) originalImage.getGraphics();
         for (RecognizedRectangle rectangle : rectangles) {
             g2.setColor(Color.GREEN);
@@ -458,10 +458,10 @@ public class ModelBuilder {
             g2.setColor(new Color(0,255,0,128));
             g2.fillRect(rectangle.getLeft(),rectangle.getTop(), rectangle.getWidth(), rectangle.getHeight());
         }
-        ImageIO.write(originalImage, "png", new File(path+"/rectangles_in_image.png"));
+        ImageIO.write(originalImage, "png", new File(highlightedImagePath));
     }
 
-    public void run(String imageFilename, String keypointsSaveDir, String shapesSaveDir) throws IOException {
+    public void run(String imageFilename, String keypointsSaveDir, String shapesSaveDir, String highlightedImagePath) throws IOException {
         startTime = System.currentTimeMillis();
         List<List<Point2D_I32>> keyPoints = identifyKeyPoints(ImageIO.read(new File(imageFilename)));
         logTime("key points identified");
@@ -474,13 +474,11 @@ public class ModelBuilder {
         List<RecognizedRectangle> rectangles = reconstructFigures(classifiedPoints);
         logTime("Shapes reconstructed");
 
-        // TODO remove me
-        saveRectangles = true;
         if (saveRectangles) {
             saveRectangles(rectangles, ImageIO.read(new File(imageFilename)), shapesSaveDir);
         }
         if (drawRectanglesOnOriginal) {
-            drawRectanglesOnOriginal(rectangles, ImageIO.read(new File(imageFilename)), shapesSaveDir);
+            drawRectanglesOnOriginal(rectangles, ImageIO.read(new File(imageFilename)), highlightedImagePath);
         }
         System.out.println("Done.");
     }

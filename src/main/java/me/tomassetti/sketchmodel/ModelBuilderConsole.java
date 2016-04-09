@@ -43,9 +43,9 @@ public class ModelBuilderConsole {
     }
 
     public static void main(String args[]) throws IOException {
-        String imageFilename = "images/sm3.png";
-        String keypointsSaveDir = "training/SM3/";
-        String shapesSaveDir = "training/SM3/";
+        String imageFilename = "images/sm2.png";
+        String keypointsSaveDir = "training/SM2/";
+        String shapesSaveDir = "training/SM2/";
 
         ModelBuilderConsole instance = new ModelBuilderConsole();
         ModelBuilder modelBuilder = new ModelBuilder(instance.imageShower());

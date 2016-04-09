@@ -247,6 +247,57 @@ public class ModelBuilder {
         shortSegmentKiller(contours, 3);
     }
 
+    private int countAllIn(Map<Point, Boolean> pointsWithStrongDerivates, int minY, int maxY, int minX, int maxX) {
+        int total = 0;
+        for (int dy = minY; dy < maxY; dy++) {
+            for (int dx = minX; dx < maxX; dx++) {
+                if (pointsWithStrongDerivates.containsKey(new Point(dx, dy))) {
+                    total++;
+                }
+            }
+        }
+        return total;
+    }
+
+    private GrayU8 removeIsolatedPoints(Map<Point, Boolean> pointsWithStrongDerivates, int width, int height) {
+        GrayU8 pointsToKeep = new GrayU8(width, height);
+        int exploreRadius = 5;
+        int exploreTh = 20;
+        for (int y=0; y<height; y++) {
+            int minY = Math.max(0, y - exploreRadius);
+            int maxY = Math.min(height, y + exploreRadius + 1);
+            int minX = 0;
+            int maxX = Math.min(width, exploreRadius + 1);
+
+            int total = countAllIn(pointsWithStrongDerivates, minY, maxY, minX, maxX);
+            if (total < exploreTh) {
+                pointsToKeep.set(0, y, WHITE);
+            } else {
+                pointsToKeep.set(0, y, BLACK);
+            }
+
+            for (int x = 1; x < width; x++) {
+                // As we move on the right we should consider one more column on the right and one less on the left
+                int newMinX = Math.max(0, x - exploreRadius);
+                int newMaxX = Math.min(width, x + exploreRadius + 1);
+                if (newMinX != minX) {
+                    total -= countAllIn(pointsWithStrongDerivates, minY, maxY, minX, newMinX);
+                    minX = newMinX;
+                }
+                if (newMaxX != maxX) {
+                    total += countAllIn(pointsWithStrongDerivates, minY, maxY, maxX, newMaxX);
+                    maxX = newMaxX;
+                }
+                if (total < exploreTh) {
+                    pointsToKeep.set(x, y, WHITE);
+                } else {
+                    pointsToKeep.set(x, y, BLACK);
+                }
+            }
+        }
+        return pointsToKeep;
+    }
+
     /**
      * Consider only the points with strong derivates and remove the rest.
      */
@@ -285,29 +336,10 @@ public class ModelBuilder {
 
         logTime("derivateCleanser c");
 
-        GrayU8 pointsToKeep = new GrayU8(input.width,input.height);
-
         // Second: I remove points with strong derivatives if they have not enough other points with strong derivates
         //         near them
-        int exploreRadius = 5;
-        int exploreTh = 20;
-        for (int y=0; y<input.getHeight(); y++) {
-            for (int x = 0; x < input.getWidth(); x++) {
-                int total = 0;
-                for (int dy = Math.max(0, y - exploreRadius); dy < Math.min(input.getHeight(), y + exploreRadius + 1); dy++) {
-                    for (int dx = Math.max(0, x - exploreRadius); dx < Math.min(input.getWidth(), x + exploreRadius + 1); dx++) {
-                        if (pointsWithStrongDerivates.containsKey(new Point(dx, dy))) {
-                            total++;
-                        }
-                    }
-                }
-                if (total < exploreTh) {
-                    pointsToKeep.set(x, y, WHITE);
-                } else {
-                    pointsToKeep.set(x, y, BLACK);
-                }
-            }
-        }
+        GrayU8 pointsToKeep = removeIsolatedPoints(pointsWithStrongDerivates, input.getWidth(), input.getHeight());
+
         logTime("derivateCleanser d");
         imageShower.show(pointsToKeep,"Derivates pointsToKeep");
 
@@ -410,7 +442,7 @@ public class ModelBuilder {
 
     private void logTime(String desc) {
         long deltaTime = System.currentTimeMillis() - startTime;
-        System.out.println(""+desc+ " : "+ deltaTime);
+        System.out.println("[Timing] "+desc+ " : "+ deltaTime);
     }
 
     public void run(String imageFilename, String keypointsSaveDir, String shapesSaveDir) throws IOException {
@@ -425,6 +457,9 @@ public class ModelBuilder {
         }
         List<RecognizedRectangle> rectangles = reconstructFigures(classifiedPoints);
         logTime("Shapes reconstructed");
+
+        // TODO remove me
+        saveRectangles = true;
         if (saveRectangles) {
             saveRectangles(rectangles, ImageIO.read(new File(imageFilename)), shapesSaveDir);
         }

@@ -11,29 +11,29 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 
-public class ModelBuilderGUI {
+public class ModelBuilderConsole {
 
     private ListDisplayPanel listPanel;
 
-    public ModelBuilderGUI() {
+    public ModelBuilderConsole() {
         listPanel = new ListDisplayPanel();
     }
 
     private ModelBuilder.ImageShower imageShower() {
         return new ModelBuilder.ImageShower() {
             @Override
-            public boolean verbose() {
-                return true;
-            }
-
-            @Override
             public void show(GrayU8 image, String name) {
-                listPanel.addImage(image, name);
+                // do nothing
             }
 
             @Override
             public void show(BufferedImage image, String name) {
-                listPanel.addImage(image, name);
+                // do nothing
+            }
+
+            @Override
+            public boolean verbose() {
+                return false;
             }
         };
     }
@@ -42,12 +42,12 @@ public class ModelBuilderGUI {
         imageShower().show(Filtering.drawDerivates(input),"Procedural Fixed Type");
     }
 
-    public static void main( String args[] ) throws IOException {
+    public static void main(String args[]) throws IOException {
         String imageFilename = "images/sm3.png";
         String keypointsSaveDir = "training/SM3/";
         String shapesSaveDir = "training/SM3/";
 
-        ModelBuilderGUI instance = new ModelBuilderGUI();
+        ModelBuilderConsole instance = new ModelBuilderConsole();
         ModelBuilder modelBuilder = new ModelBuilder(instance.imageShower());
         ShowImages.showWindow(instance.listPanel, "Shape detector", true);
         instance.imageShower().show(ImageIO.read(new File(imageFilename)), "original");

@@ -92,64 +92,50 @@ public class Recognizer {
         return selected;
     }
 
+    private static int sum(int[] a) {
+        int total = 0;
+        for (int el : a) {
+            total += el;
+        }
+        return total;
+    }
+
+    private static int north(int[] a){
+        return a[8] + a[9];
+    }
+
+    private static int south(int[] a){
+        return a[2] + a[3];
+    }
+
+    private static int east(int[] a){
+        return a[0] + a[11];
+    }
+
+    private static int west(int[] a){
+        return a[5] + a[6];
+    }
+
     public static PointType classifyPoint(int[] buckets30, int[] buckets100) {
-        if (Arrays.equals(new int[]{0,0,0,1,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,1,0,1,0,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_RIGHT;
+        if (sum(buckets30) != 2 || sum(buckets100) != 2) {
+            return null;
         }
-        if (Arrays.equals(new int[]{0,0,0,1,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,1,0,0,1,0,0,0,0,0}, buckets100)) {
+
+        boolean n = north(buckets30) == 1 && north(buckets100) == 1;
+        boolean s = south(buckets30) == 1 && south(buckets100) == 1;
+        boolean e = east(buckets30) == 1  && east(buckets100) == 1;
+        boolean w = west(buckets30) == 1  && west(buckets100) == 1;
+
+        if (s && w) {
             return PointType.CORNER_TOP_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets100)) {
+        } else if (s && e) {
+            return PointType.CORNER_TOP_LEFT;
+        } else if (n && w) {
             return PointType.CORNER_BOTTOM_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,0,0,0,1,0,0,1}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,0,0,0,1,0,0,1}, buckets100)) {
+        } else if (n && e) {
             return PointType.CORNER_BOTTOM_LEFT;
         }
-        if (Arrays.equals(new int[]{0,0,0,0,0,0,0,0,0,1,0,1}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,0,0,0,0,0,0,1}, buckets100)) {
-            return PointType.CORNER_TOP_LEFT;
-        }
-        if (Arrays.equals(new int[]{1,0,0,1,0,0,0,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{1,0,0,0,0,0,0,0,0,1,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_LEFT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,1,0,0,0,0,0,0,0,1}, buckets30) && Arrays.equals(new int[]{0,0,0,1,0,0,0,0,0,0,0,1}, buckets100)) {
-            return PointType.CORNER_TOP_LEFT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,0,1,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,0,1,0,0,1,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,1,0,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,1,0,0,0,0,0,0,0,0,1}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,0,0,0,0,0,0,1}, buckets100)) {
-            return PointType.CORNER_TOP_LEFT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,0,1,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,0,1,0,0,1,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_RIGHT;
-        }
-        if (Arrays.equals(new int[]{1,0,0,0,0,0,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{1,0,0,0,0,0,0,0,0,1,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_LEFT;
-        }
-        if (Arrays.equals(new int[]{1,0,0,0,0,0,0,0,1,0,0,0}, buckets30) && Arrays.equals(new int[]{1,0,0,0,0,0,0,0,1,0,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_LEFT;
-        }
-        if (Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,1,0,0,1,0,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,0,1,0,1,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,0,0,0,1,0,0,1,0,0,0}, buckets100)) {
-            return PointType.CORNER_BOTTOM_RIGHT;
-        }
-        if (Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,0,1,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_RIGHT;
-        }
-        if (Arrays.equals(new int[]{1,0,1,0,0,0,0,0,0,0,0,0}, buckets30) && Arrays.equals(new int[]{1,0,1,0,0,0,0,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_LEFT;
-        }
-        if (Arrays.equals(new int[]{0,0,0,0,0,1,0,0,0,1,0,0}, buckets30) && Arrays.equals(new int[]{0,0,1,0,0,1,0,0,0,0,0,0}, buckets100)) {
-            return PointType.CORNER_TOP_RIGHT;
-        }
+
         return null;
     }
 }

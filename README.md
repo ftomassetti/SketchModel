@@ -10,3 +10,6 @@ This project is in early stages. At this we can recognize most of hand-written r
 ![](https://raw.githubusercontent.com/ftomassetti/SketchModel/master/examples/outputs/res_whiteboard1.png)
 ![](https://raw.githubusercontent.com/ftomassetti/SketchModel/master/examples/outputs/res_whiteboard2.png)
 ![](https://raw.githubusercontent.com/ftomassetti/SketchModel/master/examples/outputs/res_whiteboard3.png)
+
+The solution is described here:
+[http://tomassetti.me/recognizing-hand-written-rectangles-in-an-image/](http://tomassetti.me/recognizing-hand-written-rectangles-in-an-image/)
